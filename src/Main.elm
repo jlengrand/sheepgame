@@ -11,16 +11,14 @@ import Element.Events as Events
 import Element.Font as Font
 import Element.Input as Input
 import Html exposing (Html)
-import Svg
-import Svg.Attributes exposing (cx, cy, height, r, width)
+import Svg exposing (Svg)
+import Svg.Attributes exposing (color, cx, cy, height, r, rx, ry, width, x, y)
 import Task
 
 
 type alias Model =
     { tick : Int
-    , sheeps : Flock
-    , dog : Dog
-    , target : Target
+    , entities : List Entity
     , gameSettings : GameSettings
     }
 
@@ -33,13 +31,45 @@ type alias GameSettings =
 type Component
     = KeyboardComponent
     | SpriteComponent
-    | AreaComponent Int Int Int Int
+    | AreaComponent Int Int Int Int AreaStyling
     | ScoreComponent
-    | LocationComponent Int Int
+    | LocationComponent Int Int LocationStyling
+    | RenderComponent (List Component -> Svg.Svg Msg)
+
+
+type alias AreaStyling =
+    { color : String
+    }
+
+
+type alias LocationStyling =
+    { radius : Int
+    , color : String
+    }
+
+
+sheepStyling =
+    LocationStyling 5 "#9bf6ff"
+
+
+dogStyling =
+    LocationStyling 10 "#ffc6ff"
+
+
+areaStyling =
+    AreaStyling "#fdffb6"
+
+
+type EntityType
+    = Sheep
+    | Dog
+    | Target
 
 
 type alias Entity =
-    List Component
+    { entityType : EntityType
+    , components : List Component
+    }
 
 
 type alias Dog =
@@ -58,25 +88,28 @@ type alias Flock =
     List Sheep
 
 
+startingSheeps =
+    [ { entityType = Sheep, components = [ LocationComponent 100 200 sheepStyling ] }, { entityType = Sheep, components = [ LocationComponent 300 400 sheepStyling ] } ]
 
--- Entity : { position: 2DPoint, velocity: Vector, components:List component }
--- update =
--- for every entity
---   new_velocity = f(velocity)
---   postion = position + new_velocity
---   f : Vector -> Vector
---   avoidDog : Dog -> Vector -> Vector
---   align : List Sheep -> Vector -> Vector
---   seperate : List Sheep -> Vector -> Vector
---   { sheep | velocity = avoidDog model.dog <| align model.sheeps <| seperate model.Sheep}
+
+startingDog =
+    [ { entityType = Dog
+      , components = [ LocationComponent 50 50 dogStyling ]
+      }
+    ]
+
+
+target =
+    [ { entityType = Dog
+      , components = [ AreaComponent 50 50 100 100 areaStyling ]
+      }
+    ]
 
 
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( { tick = 0
-      , sheeps = [ [ LocationComponent 100 200 ], [ LocationComponent 300 400 ] ]
-      , dog = [ LocationComponent 50 50 ]
-      , target = [ AreaComponent 50 50 100 100 ]
+      , entities = startingSheeps ++ startingDog ++ target
       , gameSettings = { size = ( 600, 600 ) }
       }
     , Cmd.none
@@ -135,8 +168,67 @@ view model =
 
 gameView : Model -> Html Msg
 gameView model =
+    let
+        renderComponents =
+            model.entities
+                |> List.concatMap
+                    (\entity ->
+                        entity.components
+                            |> List.filter
+                                (\c -> isLocationOrAreaComponent c)
+                    )
+    in
     Svg.svg
         [ Svg.Attributes.height <| String.fromInt <| Tuple.first model.gameSettings.size
         , Svg.Attributes.width <| String.fromInt <| Tuple.second model.gameSettings.size
         ]
-        [ Svg.circle [ cx "60", cy "60", r "50" ] [] ]
+    <|
+        List.filterMap identity <|
+            List.map render renderComponents
+
+
+
+-- [ Svg.circle [ cx "60", cy "60", r "50" ] [] ]
+
+
+render : Component -> Maybe (Svg Msg)
+render zeComponent =
+    case zeComponent of
+        LocationComponent zeX zeY styling ->
+            Just <|
+                Svg.circle
+                    [ cx <| String.fromInt zeX
+                    , cy <| String.fromInt zeY
+                    , r <| String.fromInt styling.radius
+                    , Svg.Attributes.fill styling.color
+                    ]
+                    []
+
+        AreaComponent zeX zeY zeWidth zeHeight styling ->
+            Just <|
+                Svg.rect
+                    [ x <| String.fromInt zeX
+                    , y <| String.fromInt zeY
+                    , Svg.Attributes.width <| String.fromInt zeWidth
+                    , Svg.Attributes.height <| String.fromInt zeHeight
+                    , Svg.Attributes.fill styling.color
+                    , rx "0"
+                    , ry "0"
+                    ]
+                    []
+
+        _ ->
+            Nothing
+
+
+isLocationOrAreaComponent : Component -> Bool
+isLocationOrAreaComponent component =
+    case component of
+        LocationComponent _ _ _ ->
+            True
+
+        AreaComponent _ _ _ _ _ ->
+            True
+
+        _ ->
+            False
