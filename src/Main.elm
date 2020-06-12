@@ -1,19 +1,21 @@
 module Main exposing (..)
 
 import Browser exposing (Document)
-import Browser.Events
-import Debug
-import Dict exposing (Dict)
+import Browser.Events exposing (onKeyDown)
 import Element exposing (Element, Orientation(..), alignRight, centerX, centerY, el, fill, fillPortion, height, padding, rgb255, row, spacing, text, width)
-import Element.Background as Background
-import Element.Border as Border
-import Element.Events as Events
 import Element.Font as Font
-import Element.Input as Input
 import Html exposing (Html)
+import Json.Decode
 import Svg exposing (Svg)
 import Svg.Attributes exposing (color, cx, cy, height, r, rx, ry, width, x, y)
-import Task
+
+
+type Direction
+    = Left
+    | Up
+    | Right
+    | Down
+    | Other
 
 
 type alias Model =
@@ -125,19 +127,43 @@ main =
         }
 
 
+toDirection : String -> Direction
+toDirection string =
+    case string of
+        "ArrowLeft" ->
+            Left
+
+        "ArrowRight" ->
+            Right
+
+        "ArrowUp" ->
+            Up
+
+        "ArrowDown" ->
+            Down
+
+        _ ->
+            Other
+
+
+keyDecoder : Json.Decode.Decoder Direction
+keyDecoder =
+    Json.Decode.map toDirection (Json.Decode.field "key" Json.Decode.string)
+
+
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Sub.none
+    onKeyDown (Json.Decode.map KeyPressed keyDecoder)
 
 
 type Msg
-    = AMessage
+    = KeyPressed Direction
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        AMessage ->
+        KeyPressed direction ->
             ( model, Cmd.none )
 
 
@@ -185,10 +211,6 @@ gameView model =
     <|
         List.filterMap identity <|
             List.map render renderComponents
-
-
-
--- [ Svg.circle [ cx "60", cy "60", r "50" ] [] ]
 
 
 render : Component -> Maybe (Svg Msg)
