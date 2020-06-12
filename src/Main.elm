@@ -224,16 +224,16 @@ findNewLocation direction location =
     -- TODO: Loads, for now we don't use speed at all
     case direction of
         Up ->
-            { location | x = location.x + 10 }
+            { location | y = location.y - 10 }
 
         Down ->
-            { location | x = location.x - 10 }
+            { location | y = location.y + 10 }
 
         Left ->
-            { location | x = location.y - 10 }
+            { location | x = location.x - 10 }
 
         Right ->
-            { location | x = location.y + 10 }
+            { location | x = location.x + 10 }
 
         Other ->
             location
