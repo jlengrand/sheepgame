@@ -20,7 +20,7 @@ type Direction
 
 type alias Model =
     { tick : Int
-    , entities : List Entity
+    , entities : Entities
     , gameSettings : GameSettings
     }
 
@@ -32,11 +32,21 @@ type alias GameSettings =
 
 type Component
     = KeyboardComponent
-    | SpriteComponent
     | AreaComponent Int Int Int Int AreaStyling
     | ScoreComponent
-    | LocationComponent Int Int LocationStyling
+    | LocationComponent Location LocationStyling
     | RenderComponent (List Component -> Svg.Svg Msg)
+
+
+type alias Location =
+    { x : Int
+    , y : Int
+    , speed : Float
+    }
+
+
+type alias Entities =
+    List Entity
 
 
 type alias AreaStyling =
@@ -91,12 +101,12 @@ type alias Flock =
 
 
 startingSheeps =
-    [ { entityType = Sheep, components = [ LocationComponent 100 200 sheepStyling ] }, { entityType = Sheep, components = [ LocationComponent 300 400 sheepStyling ] } ]
+    [ { entityType = Sheep, components = [ LocationComponent (Location 100 200 0) sheepStyling ] }, { entityType = Sheep, components = [ LocationComponent (Location 300 400 0) sheepStyling ] } ]
 
 
 startingDog =
     [ { entityType = Dog
-      , components = [ LocationComponent 50 50 dogStyling ]
+      , components = [ LocationComponent (Location 50 50 0) dogStyling, KeyboardComponent ]
       }
     ]
 
@@ -164,7 +174,68 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         KeyPressed direction ->
-            ( model, Cmd.none )
+            ( { model | entities = handleKeyPress direction model.entities }, Cmd.none )
+
+
+handleKeyPress : Direction -> Entities -> Entities
+handleKeyPress direction entities =
+    List.map
+        (\e ->
+            if hasKeyboardComponent e then
+                { e | components = updateLocationComponent e.components direction }
+
+            else
+                e
+        )
+        entities
+
+
+hasKeyboardComponent : Entity -> Bool
+hasKeyboardComponent entity =
+    List.any
+        (\c ->
+            case c of
+                KeyboardComponent ->
+                    True
+
+                _ ->
+                    False
+        )
+        entity.components
+
+
+updateLocationComponent : List Component -> Direction -> List Component
+updateLocationComponent components direction =
+    List.map
+        (\c ->
+            case c of
+                LocationComponent location styling ->
+                    LocationComponent (findNewLocation direction location) styling
+
+                _ ->
+                    c
+        )
+        components
+
+
+findNewLocation : Direction -> Location -> Location
+findNewLocation direction location =
+    -- TODO: Loads, for now we don't use speed at all
+    case direction of
+        Up ->
+            { location | x = location.x + 10 }
+
+        Down ->
+            { location | x = location.x - 10 }
+
+        Left ->
+            { location | x = location.y - 10 }
+
+        Right ->
+            { location | x = location.y + 10 }
+
+        Other ->
+            location
 
 
 
@@ -216,11 +287,11 @@ gameView model =
 render : Component -> Maybe (Svg Msg)
 render zeComponent =
     case zeComponent of
-        LocationComponent zeX zeY styling ->
+        LocationComponent location styling ->
             Just <|
                 Svg.circle
-                    [ cx <| String.fromInt zeX
-                    , cy <| String.fromInt zeY
+                    [ cx <| String.fromInt location.x
+                    , cy <| String.fromInt location.y
                     , r <| String.fromInt styling.radius
                     , Svg.Attributes.fill styling.color
                     ]
@@ -246,7 +317,7 @@ render zeComponent =
 isLocationOrAreaComponent : Component -> Bool
 isLocationOrAreaComponent component =
     case component of
-        LocationComponent _ _ _ ->
+        LocationComponent _ _ ->
             True
 
         AreaComponent _ _ _ _ _ ->
