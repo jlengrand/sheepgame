@@ -2,12 +2,12 @@ module Main exposing (..)
 
 import Browser exposing (Document)
 import Browser.Events exposing (onKeyDown)
-import Element exposing (Element, Orientation(..), alignRight, centerX, centerY, el, fill, fillPortion, height, padding, rgb255, row, spacing, text, width)
+import Element exposing (Element, Orientation(..), centerX, fill, height, width)
 import Element.Font as Font
 import Html exposing (Html)
 import Json.Decode
 import Svg exposing (Svg)
-import Svg.Attributes exposing (color, cx, cy, height, r, rx, ry, width, x, y)
+import Svg.Attributes exposing (cx, cy, r, rx, ry, x, y)
 
 
 type Direction
