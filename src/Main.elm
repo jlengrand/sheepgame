@@ -1,40 +1,53 @@
 module Main exposing (..)
 
 import Browser exposing (Document)
-import Browser.Events
-import Debug
-import Dict exposing (Dict)
-import Element exposing (Element, Orientation(..), alignRight, centerX, centerY, el, fill, fillPortion, height, padding, rgb255, row, spacing, text, width)
-import Element.Background as Background
-import Element.Border as Border
-import Element.Events as Events
+import Browser.Events exposing (onKeyDown)
+import Element exposing (Element, Orientation(..), centerX, fill, height, width)
 import Element.Font as Font
-import Element.Input as Input
 import Html exposing (Html)
+import Json.Decode
 import Svg exposing (Svg)
-import Svg.Attributes exposing (color, cx, cy, height, r, rx, ry, width, x, y)
-import Task
+import Svg.Attributes exposing (cx, cy, r, rx, ry, x, y)
+
+
+type Direction
+    = Left
+    | Up
+    | Right
+    | Down
+    | Other
 
 
 type alias Model =
     { tick : Int
-    , entities : List Entity
+    , entities : Entities
     , gameSettings : GameSettings
     }
 
 
 type alias GameSettings =
     { size : ( Int, Int )
+    , color : String
     }
 
 
 type Component
     = KeyboardComponent
-    | SpriteComponent
     | AreaComponent Int Int Int Int AreaStyling
     | ScoreComponent
-    | LocationComponent Int Int LocationStyling
+    | LocationComponent Location LocationStyling
     | RenderComponent (List Component -> Svg.Svg Msg)
+
+
+type alias Location =
+    { x : Int
+    , y : Int
+    , speed : Float
+    }
+
+
+type alias Entities =
+    List Entity
 
 
 type alias AreaStyling =
@@ -89,12 +102,12 @@ type alias Flock =
 
 
 startingSheeps =
-    [ { entityType = Sheep, components = [ LocationComponent 100 200 sheepStyling ] }, { entityType = Sheep, components = [ LocationComponent 300 400 sheepStyling ] } ]
+    [ { entityType = Sheep, components = [ LocationComponent (Location 100 200 0) sheepStyling ] }, { entityType = Sheep, components = [ LocationComponent (Location 300 400 0) sheepStyling ] } ]
 
 
 startingDog =
     [ { entityType = Dog
-      , components = [ LocationComponent 50 50 dogStyling ]
+      , components = [ LocationComponent (Location 50 50 0) dogStyling, KeyboardComponent ]
       }
     ]
 
@@ -110,7 +123,7 @@ init : () -> ( Model, Cmd Msg )
 init _ =
     ( { tick = 0
       , entities = startingSheeps ++ startingDog ++ target
-      , gameSettings = { size = ( 600, 600 ) }
+      , gameSettings = { size = ( 600, 600 ), color = "#bdb2ff" }
       }
     , Cmd.none
     )
@@ -125,20 +138,105 @@ main =
         }
 
 
+toDirection : String -> Direction
+toDirection string =
+    case string of
+        "ArrowLeft" ->
+            Left
+
+        "ArrowRight" ->
+            Right
+
+        "ArrowUp" ->
+            Up
+
+        "ArrowDown" ->
+            Down
+
+        _ ->
+            Other
+
+
+keyDecoder : Json.Decode.Decoder Direction
+keyDecoder =
+    Json.Decode.map toDirection (Json.Decode.field "key" Json.Decode.string)
+
+
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Sub.none
+    onKeyDown (Json.Decode.map KeyPressed keyDecoder)
 
 
 type Msg
-    = AMessage
+    = KeyPressed Direction
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        AMessage ->
-            ( model, Cmd.none )
+        KeyPressed direction ->
+            ( { model | entities = handleKeyPress direction model.entities }, Cmd.none )
+
+
+handleKeyPress : Direction -> Entities -> Entities
+handleKeyPress direction entities =
+    List.map
+        (\e ->
+            if hasKeyboardComponent e then
+                { e | components = updateLocationComponent e.components direction }
+
+            else
+                e
+        )
+        entities
+
+
+hasKeyboardComponent : Entity -> Bool
+hasKeyboardComponent entity =
+    List.any
+        (\c ->
+            case c of
+                KeyboardComponent ->
+                    True
+
+                _ ->
+                    False
+        )
+        entity.components
+
+
+updateLocationComponent : List Component -> Direction -> List Component
+updateLocationComponent components direction =
+    List.map
+        (\c ->
+            case c of
+                LocationComponent location styling ->
+                    LocationComponent (findNewLocation direction location) styling
+
+                _ ->
+                    c
+        )
+        components
+
+
+findNewLocation : Direction -> Location -> Location
+findNewLocation direction location =
+    -- TODO: Loads, for now we don't use speed at all
+    case direction of
+        Up ->
+            { location | y = location.y - 10 }
+
+        Down ->
+            { location | y = location.y + 10 }
+
+        Left ->
+            { location | x = location.x - 10 }
+
+        Right ->
+            { location | x = location.x + 10 }
+
+        Other ->
+            location
 
 
 
@@ -169,6 +267,14 @@ view model =
 gameView : Model -> Html Msg
 gameView model =
     let
+        backgroundRectangle =
+            Svg.rect
+                [ Svg.Attributes.height <| String.fromInt <| Tuple.first model.gameSettings.size
+                , Svg.Attributes.width <| String.fromInt <| Tuple.second model.gameSettings.size
+                , Svg.Attributes.fill "#bdb2ff"
+                ]
+                []
+
         renderComponents =
             model.entities
                 |> List.concatMap
@@ -182,23 +288,21 @@ gameView model =
         [ Svg.Attributes.height <| String.fromInt <| Tuple.first model.gameSettings.size
         , Svg.Attributes.width <| String.fromInt <| Tuple.second model.gameSettings.size
         ]
-    <|
-        List.filterMap identity <|
-            List.map render renderComponents
-
-
-
--- [ Svg.circle [ cx "60", cy "60", r "50" ] [] ]
+        ([ backgroundRectangle ]
+            ++ (List.filterMap identity <|
+                    List.map render renderComponents
+               )
+        )
 
 
 render : Component -> Maybe (Svg Msg)
 render zeComponent =
     case zeComponent of
-        LocationComponent zeX zeY styling ->
+        LocationComponent location styling ->
             Just <|
                 Svg.circle
-                    [ cx <| String.fromInt zeX
-                    , cy <| String.fromInt zeY
+                    [ cx <| String.fromInt location.x
+                    , cy <| String.fromInt location.y
                     , r <| String.fromInt styling.radius
                     , Svg.Attributes.fill styling.color
                     ]
@@ -224,7 +328,7 @@ render zeComponent =
 isLocationOrAreaComponent : Component -> Bool
 isLocationOrAreaComponent component =
     case component of
-        LocationComponent _ _ _ ->
+        LocationComponent _ _ ->
             True
 
         AreaComponent _ _ _ _ _ ->
