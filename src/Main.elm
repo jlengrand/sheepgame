@@ -27,6 +27,7 @@ type alias Model =
 
 type alias GameSettings =
     { size : ( Int, Int )
+    , color : String
     }
 
 
@@ -122,7 +123,7 @@ init : () -> ( Model, Cmd Msg )
 init _ =
     ( { tick = 0
       , entities = startingSheeps ++ startingDog ++ target
-      , gameSettings = { size = ( 600, 600 ) }
+      , gameSettings = { size = ( 600, 600 ), color = "#bdb2ff" }
       }
     , Cmd.none
     )
@@ -266,6 +267,14 @@ view model =
 gameView : Model -> Html Msg
 gameView model =
     let
+        backgroundRectangle =
+            Svg.rect
+                [ Svg.Attributes.height <| String.fromInt <| Tuple.first model.gameSettings.size
+                , Svg.Attributes.width <| String.fromInt <| Tuple.second model.gameSettings.size
+                , Svg.Attributes.fill "#bdb2ff"
+                ]
+                []
+
         renderComponents =
             model.entities
                 |> List.concatMap
@@ -279,9 +288,11 @@ gameView model =
         [ Svg.Attributes.height <| String.fromInt <| Tuple.first model.gameSettings.size
         , Svg.Attributes.width <| String.fromInt <| Tuple.second model.gameSettings.size
         ]
-    <|
-        List.filterMap identity <|
-            List.map render renderComponents
+        ([ backgroundRectangle ]
+            ++ (List.filterMap identity <|
+                    List.map render renderComponents
+               )
+        )
 
 
 render : Component -> Maybe (Svg Msg)
