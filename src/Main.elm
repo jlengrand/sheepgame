@@ -1,10 +1,9 @@
 module Main exposing (..)
 
-import Axis2d
 import Browser exposing (Document)
-import Browser.Events exposing (onKeyDown)
+import Browser.Events exposing (onAnimationFrame, onKeyDown)
 import Direction2d
-import Element exposing (Element, Orientation(..), centerX, fill, height, width)
+import Element exposing (Element, Orientation(..), centerX, fill)
 import Element.Font as Font
 import Html exposing (Html)
 import Json.Decode
@@ -12,6 +11,7 @@ import Pixels exposing (Pixels)
 import Point2d exposing (Point2d)
 import Svg exposing (Svg)
 import Svg.Attributes exposing (cx, cy, r, rx, ry, x, y)
+import Time exposing (Posix)
 import Vector2d exposing (Vector2d)
 
 
@@ -31,6 +31,7 @@ type alias Model =
     { tick : Int
     , entities : Entities
     , gameSettings : GameSettings
+    , lastTick : Posix
     }
 
 
@@ -138,6 +139,7 @@ init _ =
     ( { tick = 0
       , entities = startingSheeps ++ startingDog ++ target
       , gameSettings = { size = ( 600, 600 ), color = "#bdb2ff" }
+      , lastTick = Time.millisToPosix 0
       }
     , Cmd.none
     )
@@ -178,11 +180,15 @@ keyDecoder =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    onKeyDown (Json.Decode.map KeyPressed keyDecoder)
+    Sub.batch
+        [ onKeyDown (Json.Decode.map KeyPressed keyDecoder)
+        , onAnimationFrame NewFrame
+        ]
 
 
 type Msg
     = KeyPressed Direction
+    | NewFrame Posix
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -190,6 +196,9 @@ update msg model =
     case msg of
         KeyPressed direction ->
             ( { model | entities = handleKeyPress direction model.entities }, Cmd.none )
+
+        NewFrame tick ->
+            ( { model | lastTick = tick }, Cmd.none )
 
 
 handleKeyPress : Direction -> Entities -> Entities
