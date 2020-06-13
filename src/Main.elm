@@ -1,13 +1,22 @@
 module Main exposing (..)
 
+import Axis2d
 import Browser exposing (Document)
 import Browser.Events exposing (onKeyDown)
+import Direction2d
 import Element exposing (Element, Orientation(..), centerX, fill, height, width)
 import Element.Font as Font
 import Html exposing (Html)
 import Json.Decode
+import Length
+import Pixels exposing (Pixels)
+import Point2d exposing (Point2d)
 import Svg exposing (Svg)
 import Svg.Attributes exposing (cx, cy, r, rx, ry, x, y)
+
+
+type TopLeftCoordinates
+    = TopLeftCoordinates
 
 
 type Direction
@@ -39,9 +48,12 @@ type Component
     | RenderComponent (List Component -> Svg.Svg Msg)
 
 
+maxSpeed =
+    20
+
+
 type alias Location =
-    { x : Int
-    , y : Int
+    { point : Point2d Pixels TopLeftCoordinates
     , speed : Float
     }
 
@@ -102,12 +114,14 @@ type alias Flock =
 
 
 startingSheeps =
-    [ { entityType = Sheep, components = [ LocationComponent (Location 100 200 0) sheepStyling ] }, { entityType = Sheep, components = [ LocationComponent (Location 300 400 0) sheepStyling ] } ]
+    [ { entityType = Sheep, components = [ LocationComponent (Location (Point2d.pixels 200 100) 0) sheepStyling ] }
+    , { entityType = Sheep, components = [ LocationComponent (Location (Point2d.pixels 300 400) 0) sheepStyling ] }
+    ]
 
 
 startingDog =
     [ { entityType = Dog
-      , components = [ LocationComponent (Location 50 50 0) dogStyling, KeyboardComponent ]
+      , components = [ LocationComponent (Location (Point2d.pixels 50 50) 0) dogStyling, KeyboardComponent ]
       }
     ]
 
@@ -224,16 +238,16 @@ findNewLocation direction location =
     -- TODO: Loads, for now we don't use speed at all
     case direction of
         Up ->
-            { location | y = location.y - 10 }
+            { location | point = location.point |> Point2d.translateIn Direction2d.y (Pixels.pixels -10) }
 
         Down ->
-            { location | y = location.y + 10 }
+            { location | point = location.point |> Point2d.translateIn Direction2d.y (Pixels.pixels 10) }
 
         Left ->
-            { location | x = location.x - 10 }
+            { location | point = location.point |> Point2d.translateIn Direction2d.x (Pixels.pixels -10) }
 
         Right ->
-            { location | x = location.x + 10 }
+            { location | point = location.point |> Point2d.translateIn Direction2d.x (Pixels.pixels 10) }
 
         Other ->
             location
@@ -301,8 +315,8 @@ render zeComponent =
         LocationComponent location styling ->
             Just <|
                 Svg.circle
-                    [ cx <| String.fromInt location.x
-                    , cy <| String.fromInt location.y
+                    [ cx <| String.fromFloat (Point2d.toPixels location.point).x
+                    , cy <| String.fromFloat (Point2d.toPixels location.point).y
                     , r <| String.fromInt styling.radius
                     , Svg.Attributes.fill styling.color
                     ]
