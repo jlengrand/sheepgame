@@ -8,11 +8,11 @@ import Element exposing (Element, Orientation(..), centerX, fill, height, width)
 import Element.Font as Font
 import Html exposing (Html)
 import Json.Decode
-import Length
 import Pixels exposing (Pixels)
 import Point2d exposing (Point2d)
 import Svg exposing (Svg)
 import Svg.Attributes exposing (cx, cy, r, rx, ry, x, y)
+import Vector2d exposing (Vector2d)
 
 
 type TopLeftCoordinates
@@ -54,7 +54,7 @@ maxSpeed =
 
 type alias Location =
     { point : Point2d Pixels TopLeftCoordinates
-    , speed : Float
+    , speed : Vector2d Pixels TopLeftCoordinates
     }
 
 
@@ -114,20 +114,20 @@ type alias Flock =
 
 
 startingSheeps =
-    [ { entityType = Sheep, components = [ LocationComponent (Location (Point2d.pixels 200 100) 0) sheepStyling ] }
-    , { entityType = Sheep, components = [ LocationComponent (Location (Point2d.pixels 300 400) 0) sheepStyling ] }
+    [ { entityType = Sheep, components = [ LocationComponent (Location (Point2d.pixels 200 100) (Vector2d.pixels 0 0)) sheepStyling ] }
+    , { entityType = Sheep, components = [ LocationComponent (Location (Point2d.pixels 300 400) (Vector2d.pixels 0 0)) sheepStyling ] }
     ]
 
 
 startingDog =
     [ { entityType = Dog
-      , components = [ LocationComponent (Location (Point2d.pixels 50 50) 0) dogStyling, KeyboardComponent ]
+      , components = [ LocationComponent (Location (Point2d.pixels 50 50) (Vector2d.pixels 0 0)) dogStyling, KeyboardComponent ]
       }
     ]
 
 
 target =
-    [ { entityType = Dog
+    [ { entityType = Target
       , components = [ AreaComponent 50 50 100 100 areaStyling ]
       }
     ]
