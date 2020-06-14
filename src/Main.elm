@@ -1,18 +1,18 @@
 module Main exposing (..)
 
-import Axis2d
 import Browser exposing (Document)
-import Browser.Events exposing (onKeyDown)
+import Browser.Events exposing (onAnimationFrame, onKeyDown)
 import Direction2d
-import Element exposing (Element, Orientation(..), centerX, fill, height, width)
+import Element exposing (Element, Orientation(..), centerX, fill)
 import Element.Font as Font
 import Html exposing (Html)
 import Json.Decode
-import Length
 import Pixels exposing (Pixels)
 import Point2d exposing (Point2d)
 import Svg exposing (Svg)
 import Svg.Attributes exposing (cx, cy, r, rx, ry, x, y)
+import Time exposing (Posix)
+import Vector2d exposing (Vector2d)
 
 
 type TopLeftCoordinates
@@ -31,6 +31,8 @@ type alias Model =
     { tick : Int
     , entities : Entities
     , gameSettings : GameSettings
+    , lastTick : Posix
+    , currentDirection : Maybe Direction
     }
 
 
@@ -44,17 +46,13 @@ type Component
     = KeyboardComponent
     | AreaComponent Int Int Int Int AreaStyling
     | ScoreComponent
-    | LocationComponent Location LocationStyling
+    | LocationComponent KinematicState CircleStyling
     | RenderComponent (List Component -> Svg.Svg Msg)
 
 
-maxSpeed =
-    20
-
-
-type alias Location =
-    { point : Point2d Pixels TopLeftCoordinates
-    , speed : Float
+type alias KinematicState =
+    { position : Point2d Pixels TopLeftCoordinates
+    , velocity : Vector2d Pixels TopLeftCoordinates
     }
 
 
@@ -67,18 +65,18 @@ type alias AreaStyling =
     }
 
 
-type alias LocationStyling =
+type alias CircleStyling =
     { radius : Int
     , color : String
     }
 
 
 sheepStyling =
-    LocationStyling 5 "#9bf6ff"
+    CircleStyling 5 "#9bf6ff"
 
 
 dogStyling =
-    LocationStyling 10 "#ffc6ff"
+    CircleStyling 10 "#ffc6ff"
 
 
 areaStyling =
@@ -114,20 +112,20 @@ type alias Flock =
 
 
 startingSheeps =
-    [ { entityType = Sheep, components = [ LocationComponent (Location (Point2d.pixels 200 100) 0) sheepStyling ] }
-    , { entityType = Sheep, components = [ LocationComponent (Location (Point2d.pixels 300 400) 0) sheepStyling ] }
+    [ { entityType = Sheep, components = [ LocationComponent (KinematicState (Point2d.pixels 200 100) (Vector2d.pixels 0 0)) sheepStyling ] }
+    , { entityType = Sheep, components = [ LocationComponent (KinematicState (Point2d.pixels 300 400) (Vector2d.pixels 0 0)) sheepStyling ] }
     ]
 
 
 startingDog =
     [ { entityType = Dog
-      , components = [ LocationComponent (Location (Point2d.pixels 50 50) 0) dogStyling, KeyboardComponent ]
+      , components = [ LocationComponent (KinematicState (Point2d.pixels 50 50) (Vector2d.pixels 0 0)) dogStyling, KeyboardComponent ]
       }
     ]
 
 
 target =
-    [ { entityType = Dog
+    [ { entityType = Target
       , components = [ AreaComponent 50 50 100 100 areaStyling ]
       }
     ]
@@ -138,6 +136,8 @@ init _ =
     ( { tick = 0
       , entities = startingSheeps ++ startingDog ++ target
       , gameSettings = { size = ( 600, 600 ), color = "#bdb2ff" }
+      , lastTick = Time.millisToPosix 0
+      , currentDirection = Maybe.Nothing
       }
     , Cmd.none
     )
@@ -178,31 +178,60 @@ keyDecoder =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    onKeyDown (Json.Decode.map KeyPressed keyDecoder)
+    Sub.batch
+        [ onKeyDown (Json.Decode.map KeyPressed keyDecoder)
+        , onAnimationFrame NewFrame
+        ]
 
 
 type Msg
     = KeyPressed Direction
+    | NewFrame Posix
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         KeyPressed direction ->
-            ( { model | entities = handleKeyPress direction model.entities }, Cmd.none )
+            ( { model | currentDirection = Just direction }, Cmd.none )
+
+        NewFrame tick ->
+            ( { model
+                | lastTick = tick
+                , currentDirection = Maybe.Nothing
+                , entities = updateVelocities model.currentDirection model.entities |> updatePositions
+              }
+            , Cmd.none
+            )
 
 
-handleKeyPress : Direction -> Entities -> Entities
-handleKeyPress direction entities =
+updatePositions : Entities -> Entities
+updatePositions entities =
+    -- TODO : Here we just update the positions based on speed (and reduce speed most likely)
     List.map
         (\e ->
-            if hasKeyboardComponent e then
-                { e | components = updateLocationComponent e.components direction }
-
-            else
-                e
+            { e | components = updatePositionOfLocationComponent e.components }
         )
         entities
+
+
+updateVelocities : Maybe Direction -> Entities -> Entities
+updateVelocities maybeDirection entities =
+    -- TODO : here we handle the change of velocity of sheeps and dogs
+    case maybeDirection of
+        Maybe.Nothing ->
+            entities
+
+        Just direction ->
+            List.map
+                (\e ->
+                    if hasKeyboardComponent e then
+                        { e | components = updateVelocityOfDogs e.components direction }
+
+                    else
+                        e
+                )
+                entities
 
 
 hasKeyboardComponent : Entity -> Bool
@@ -219,13 +248,13 @@ hasKeyboardComponent entity =
         entity.components
 
 
-updateLocationComponent : List Component -> Direction -> List Component
-updateLocationComponent components direction =
+updateVelocityOfDogs : List Component -> Direction -> List Component
+updateVelocityOfDogs components direction =
     List.map
         (\c ->
             case c of
-                LocationComponent location styling ->
-                    LocationComponent (findNewLocation direction location) styling
+                LocationComponent kinematicState styling ->
+                    LocationComponent (findNewVelocityOfDog direction kinematicState) styling
 
                 _ ->
                     c
@@ -233,24 +262,45 @@ updateLocationComponent components direction =
         components
 
 
-findNewLocation : Direction -> Location -> Location
-findNewLocation direction location =
-    -- TODO: Loads, for now we don't use speed at all
+findNewVelocityOfDog : Direction -> KinematicState -> KinematicState
+findNewVelocityOfDog direction kstate =
     case direction of
         Up ->
-            { location | point = location.point |> Point2d.translateIn Direction2d.y (Pixels.pixels -10) }
+            { kstate | velocity = Vector2d.plus kstate.velocity <| Vector2d.pixels 0 -2 }
 
         Down ->
-            { location | point = location.point |> Point2d.translateIn Direction2d.y (Pixels.pixels 10) }
+            { kstate | velocity = Vector2d.plus kstate.velocity <| Vector2d.pixels 0 2 }
 
         Left ->
-            { location | point = location.point |> Point2d.translateIn Direction2d.x (Pixels.pixels -10) }
+            { kstate | velocity = Vector2d.plus kstate.velocity <| Vector2d.pixels -2 0 }
 
         Right ->
-            { location | point = location.point |> Point2d.translateIn Direction2d.x (Pixels.pixels 10) }
+            { kstate | velocity = Vector2d.plus kstate.velocity <| Vector2d.pixels 2 0 }
 
         Other ->
-            location
+            kstate
+
+
+updatePositionOfLocationComponent : List Component -> List Component
+updatePositionOfLocationComponent components =
+    List.map
+        (\c ->
+            case c of
+                LocationComponent location styling ->
+                    LocationComponent (findNewPosition location) styling
+
+                _ ->
+                    c
+        )
+        components
+
+
+findNewPosition : KinematicState -> KinematicState
+findNewPosition kinematicState =
+    { kinematicState
+        | position = Point2d.translateBy kinematicState.velocity kinematicState.position
+        , velocity = Vector2d.scaleBy 0.96 kinematicState.velocity
+    }
 
 
 
@@ -302,11 +352,26 @@ gameView model =
         [ Svg.Attributes.height <| String.fromInt <| Tuple.first model.gameSettings.size
         , Svg.Attributes.width <| String.fromInt <| Tuple.second model.gameSettings.size
         ]
-        ([ backgroundRectangle ]
-            ++ (List.filterMap identity <|
-                    List.map render renderComponents
+        (backgroundRectangle
+            :: (List.filterMap identity <|
+                    List.map render <|
+                        List.sortBy zOrder renderComponents
                )
         )
+
+
+zOrder : Component -> Int
+zOrder component =
+    -- I guess we have to add all 'renderables' here
+    case component of
+        LocationComponent _ _ ->
+            0
+
+        AreaComponent _ _ _ _ _ ->
+            -1
+
+        _ ->
+            999
 
 
 render : Component -> Maybe (Svg Msg)
@@ -315,8 +380,8 @@ render zeComponent =
         LocationComponent location styling ->
             Just <|
                 Svg.circle
-                    [ cx <| String.fromFloat (Point2d.toPixels location.point).x
-                    , cy <| String.fromFloat (Point2d.toPixels location.point).y
+                    [ cx <| String.fromFloat (Point2d.toPixels location.position).x
+                    , cy <| String.fromFloat (Point2d.toPixels location.position).y
                     , r <| String.fromInt styling.radius
                     , Svg.Attributes.fill styling.color
                     ]
