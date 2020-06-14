@@ -46,7 +46,7 @@ type Component
     = KeyboardComponent
     | AreaComponent Int Int Int Int AreaStyling
     | ScoreComponent
-    | LocationComponent KinematicState LocationStyling
+    | LocationComponent KinematicState CircleStyling
     | RenderComponent (List Component -> Svg.Svg Msg)
 
 
@@ -65,18 +65,18 @@ type alias AreaStyling =
     }
 
 
-type alias LocationStyling =
+type alias CircleStyling =
     { radius : Int
     , color : String
     }
 
 
 sheepStyling =
-    LocationStyling 5 "#9bf6ff"
+    CircleStyling 5 "#9bf6ff"
 
 
 dogStyling =
-    LocationStyling 10 "#ffc6ff"
+    CircleStyling 10 "#ffc6ff"
 
 
 areaStyling =
