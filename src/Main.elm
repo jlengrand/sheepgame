@@ -46,7 +46,7 @@ type Component
     = KeyboardComponent
     | AreaComponent Int Int Int Int AreaStyling
     | ScoreComponent
-    | LocationComponent KinematicState LocationStyling
+    | LocationComponent KinematicState CircleStyling
     | RenderComponent (List Component -> Svg.Svg Msg)
 
 
@@ -65,18 +65,18 @@ type alias AreaStyling =
     }
 
 
-type alias LocationStyling =
+type alias CircleStyling =
     { radius : Int
     , color : String
     }
 
 
 sheepStyling =
-    LocationStyling 5 "#9bf6ff"
+    CircleStyling 5 "#9bf6ff"
 
 
 dogStyling =
-    LocationStyling 10 "#ffc6ff"
+    CircleStyling 10 "#ffc6ff"
 
 
 areaStyling =
@@ -299,7 +299,7 @@ findNewPosition : KinematicState -> KinematicState
 findNewPosition kinematicState =
     { kinematicState
         | position = Point2d.translateBy kinematicState.velocity kinematicState.position
-        , velocity = Vector2d.scaleBy 0.97 kinematicState.velocity
+        , velocity = Vector2d.scaleBy 0.96 kinematicState.velocity
     }
 
 
@@ -352,11 +352,26 @@ gameView model =
         [ Svg.Attributes.height <| String.fromInt <| Tuple.first model.gameSettings.size
         , Svg.Attributes.width <| String.fromInt <| Tuple.second model.gameSettings.size
         ]
-        ([ backgroundRectangle ]
-            ++ (List.filterMap identity <|
-                    List.map render renderComponents
+        (backgroundRectangle
+            :: (List.filterMap identity <|
+                    List.map render <|
+                        List.sortBy zOrder renderComponents
                )
         )
+
+
+zOrder : Component -> Int
+zOrder component =
+    -- I guess we have to add all 'renderables' here
+    case component of
+        LocationComponent _ _ ->
+            0
+
+        AreaComponent _ _ _ _ _ ->
+            -1
+
+        _ ->
+            999
 
 
 render : Component -> Maybe (Svg Msg)
