@@ -297,7 +297,10 @@ updatePositionOfLocationComponent components =
 
 findNewPosition : KinematicState -> KinematicState
 findNewPosition kinematicState =
-    { kinematicState | position = Point2d.translateBy kinematicState.velocity kinematicState.position }
+    { kinematicState
+        | position = Point2d.translateBy kinematicState.velocity kinematicState.position
+        , velocity = Vector2d.scaleBy 0.85 kinematicState.velocity
+    }
 
 
 
