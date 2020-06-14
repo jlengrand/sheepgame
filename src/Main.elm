@@ -299,7 +299,7 @@ findNewPosition : KinematicState -> KinematicState
 findNewPosition kinematicState =
     { kinematicState
         | position = Point2d.translateBy kinematicState.velocity kinematicState.position
-        , velocity = Vector2d.scaleBy 0.97 kinematicState.velocity
+        , velocity = Vector2d.scaleBy 0.96 kinematicState.velocity
     }
 
 
@@ -352,11 +352,26 @@ gameView model =
         [ Svg.Attributes.height <| String.fromInt <| Tuple.first model.gameSettings.size
         , Svg.Attributes.width <| String.fromInt <| Tuple.second model.gameSettings.size
         ]
-        ([ backgroundRectangle ]
-            ++ (List.filterMap identity <|
-                    List.map render renderComponents
+        (backgroundRectangle
+            :: (List.filterMap identity <|
+                    List.map render <|
+                        List.sortBy zOrder renderComponents
                )
         )
+
+
+zOrder : Component -> Int
+zOrder component =
+    -- I guess we have to add all 'renderables' here
+    case component of
+        LocationComponent _ _ ->
+            0
+
+        AreaComponent _ _ _ _ _ ->
+            -1
+
+        _ ->
+            999
 
 
 render : Component -> Maybe (Svg Msg)
