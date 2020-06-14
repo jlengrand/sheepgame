@@ -46,17 +46,13 @@ type Component
     = KeyboardComponent
     | AreaComponent Int Int Int Int AreaStyling
     | ScoreComponent
-    | LocationComponent Location LocationStyling
+    | LocationComponent KinematicState LocationStyling
     | RenderComponent (List Component -> Svg.Svg Msg)
 
 
-maxSpeed =
-    20
-
-
-type alias Location =
-    { point : Point2d Pixels TopLeftCoordinates
-    , speed : Vector2d Pixels TopLeftCoordinates
+type alias KinematicState =
+    { position : Point2d Pixels TopLeftCoordinates
+    , velocity : Vector2d Pixels TopLeftCoordinates
     }
 
 
@@ -116,14 +112,14 @@ type alias Flock =
 
 
 startingSheeps =
-    [ { entityType = Sheep, components = [ LocationComponent (Location (Point2d.pixels 200 100) (Vector2d.pixels 0 0)) sheepStyling ] }
-    , { entityType = Sheep, components = [ LocationComponent (Location (Point2d.pixels 300 400) (Vector2d.pixels 0 0)) sheepStyling ] }
+    [ { entityType = Sheep, components = [ LocationComponent (KinematicState (Point2d.pixels 200 100) (Vector2d.pixels 0 0)) sheepStyling ] }
+    , { entityType = Sheep, components = [ LocationComponent (KinematicState (Point2d.pixels 300 400) (Vector2d.pixels 0 0)) sheepStyling ] }
     ]
 
 
 startingDog =
     [ { entityType = Dog
-      , components = [ LocationComponent (Location (Point2d.pixels 50 50) (Vector2d.pixels 0 0)) dogStyling, KeyboardComponent ]
+      , components = [ LocationComponent (KinematicState (Point2d.pixels 50 50) (Vector2d.pixels 0 0)) dogStyling, KeyboardComponent ]
       }
     ]
 
@@ -203,14 +199,25 @@ update msg model =
             ( { model
                 | lastTick = tick
                 , currentDirection = Maybe.Nothing
-                , entities = handleNewFrame model.currentDirection model.entities
+                , entities = updateVelocities model.currentDirection model.entities |> updatePositions
               }
             , Cmd.none
             )
 
 
-handleNewFrame : Maybe Direction -> Entities -> Entities
-handleNewFrame maybeDirection entities =
+updatePositions : Entities -> Entities
+updatePositions entities =
+    -- TODO : Here we just update the positions based on speed (and reduce speed most likely)
+    List.map
+        (\e ->
+            { e | components = updatePositionOfLocationComponent e.components }
+        )
+        entities
+
+
+updateVelocities : Maybe Direction -> Entities -> Entities
+updateVelocities maybeDirection entities =
+    -- TODO : here we handle the change of velocity of sheeps and dogs
     case maybeDirection of
         Maybe.Nothing ->
             entities
@@ -219,7 +226,7 @@ handleNewFrame maybeDirection entities =
             List.map
                 (\e ->
                     if hasKeyboardComponent e then
-                        { e | components = updateLocationComponent e.components direction }
+                        { e | components = updateVelocityOfDogs e.components direction }
 
                     else
                         e
@@ -241,13 +248,13 @@ hasKeyboardComponent entity =
         entity.components
 
 
-updateLocationComponent : List Component -> Direction -> List Component
-updateLocationComponent components direction =
+updateVelocityOfDogs : List Component -> Direction -> List Component
+updateVelocityOfDogs components direction =
     List.map
         (\c ->
             case c of
-                LocationComponent location styling ->
-                    LocationComponent (findNewLocation direction location) styling
+                LocationComponent kinematicState styling ->
+                    LocationComponent (findNewVelocityOfDog direction kinematicState) styling
 
                 _ ->
                     c
@@ -255,24 +262,43 @@ updateLocationComponent components direction =
         components
 
 
-findNewLocation : Direction -> Location -> Location
-findNewLocation direction location =
-    -- TODO: Loads, for now we don't use speed at all
+findNewVelocityOfDog : Direction -> KinematicState -> KinematicState
+findNewVelocityOfDog direction kstate =
     case direction of
         Up ->
-            { location | point = location.point |> Point2d.translateIn Direction2d.y (Pixels.pixels -10) }
+            { kstate | velocity = Vector2d.pixels 0 0 }
 
         Down ->
-            { location | point = location.point |> Point2d.translateIn Direction2d.y (Pixels.pixels 10) }
+            { kstate | velocity = Vector2d.pixels 0 0 }
 
         Left ->
-            { location | point = location.point |> Point2d.translateIn Direction2d.x (Pixels.pixels -10) }
+            { kstate | velocity = Vector2d.pixels 0 0 }
 
         Right ->
-            { location | point = location.point |> Point2d.translateIn Direction2d.x (Pixels.pixels 10) }
+            { kstate | velocity = Vector2d.pixels 0 0 }
 
         Other ->
-            location
+            kstate
+
+
+updatePositionOfLocationComponent : List Component -> List Component
+updatePositionOfLocationComponent components =
+    List.map
+        (\c ->
+            case c of
+                LocationComponent location styling ->
+                    LocationComponent (findNewPosition location) styling
+
+                _ ->
+                    c
+        )
+        components
+
+
+findNewPosition : KinematicState -> KinematicState
+findNewPosition location =
+    -- TODO: Loads, for now we don't use velocity at all. Should update position based on velocity and position. This is the same for everyone. No specific behaviour
+    location
 
 
 
@@ -337,8 +363,8 @@ render zeComponent =
         LocationComponent location styling ->
             Just <|
                 Svg.circle
-                    [ cx <| String.fromFloat (Point2d.toPixels location.point).x
-                    , cy <| String.fromFloat (Point2d.toPixels location.point).y
+                    [ cx <| String.fromFloat (Point2d.toPixels location.position).x
+                    , cy <| String.fromFloat (Point2d.toPixels location.position).y
                     , r <| String.fromInt styling.radius
                     , Svg.Attributes.fill styling.color
                     ]
