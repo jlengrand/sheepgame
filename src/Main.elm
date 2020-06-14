@@ -32,6 +32,7 @@ type alias Model =
     , entities : Entities
     , gameSettings : GameSettings
     , lastTick : Posix
+    , currentDirection : Maybe Direction
     }
 
 
@@ -140,6 +141,7 @@ init _ =
       , entities = startingSheeps ++ startingDog ++ target
       , gameSettings = { size = ( 600, 600 ), color = "#bdb2ff" }
       , lastTick = Time.millisToPosix 0
+      , currentDirection = Maybe.Nothing
       }
     , Cmd.none
     )
@@ -195,23 +197,34 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         KeyPressed direction ->
-            ( { model | entities = handleKeyPress direction model.entities }, Cmd.none )
+            ( { model | currentDirection = Just direction }, Cmd.none )
 
         NewFrame tick ->
-            ( { model | lastTick = tick }, Cmd.none )
+            ( { model
+                | lastTick = tick
+                , currentDirection = Maybe.Nothing
+                , entities = handleNewFrame model.currentDirection model.entities
+              }
+            , Cmd.none
+            )
 
 
-handleKeyPress : Direction -> Entities -> Entities
-handleKeyPress direction entities =
-    List.map
-        (\e ->
-            if hasKeyboardComponent e then
-                { e | components = updateLocationComponent e.components direction }
+handleNewFrame : Maybe Direction -> Entities -> Entities
+handleNewFrame maybeDirection entities =
+    case maybeDirection of
+        Maybe.Nothing ->
+            entities
 
-            else
-                e
-        )
-        entities
+        Just direction ->
+            List.map
+                (\e ->
+                    if hasKeyboardComponent e then
+                        { e | components = updateLocationComponent e.components direction }
+
+                    else
+                        e
+                )
+                entities
 
 
 hasKeyboardComponent : Entity -> Bool
