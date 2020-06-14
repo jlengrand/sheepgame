@@ -296,9 +296,8 @@ updatePositionOfLocationComponent components =
 
 
 findNewPosition : KinematicState -> KinematicState
-findNewPosition location =
-    -- TODO: Loads, for now we don't use velocity at all. Should update position based on velocity and position. This is the same for everyone. No specific behaviour
-    location
+findNewPosition kinematicState =
+    { kinematicState | position = Point2d.translateBy kinematicState.velocity kinematicState.position }
 
 
 
