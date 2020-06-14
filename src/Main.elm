@@ -266,16 +266,16 @@ findNewVelocityOfDog : Direction -> KinematicState -> KinematicState
 findNewVelocityOfDog direction kstate =
     case direction of
         Up ->
-            { kstate | velocity = Vector2d.pixels 0 -10 }
+            { kstate | velocity = Vector2d.plus kstate.velocity <| Vector2d.pixels 0 -2 }
 
         Down ->
-            { kstate | velocity = Vector2d.pixels 0 10 }
+            { kstate | velocity = Vector2d.plus kstate.velocity <| Vector2d.pixels 0 2 }
 
         Left ->
-            { kstate | velocity = Vector2d.pixels -10 0 }
+            { kstate | velocity = Vector2d.plus kstate.velocity <| Vector2d.pixels -2 0 }
 
         Right ->
-            { kstate | velocity = Vector2d.pixels 10 0 }
+            { kstate | velocity = Vector2d.plus kstate.velocity <| Vector2d.pixels 2 0 }
 
         Other ->
             kstate
@@ -299,7 +299,7 @@ findNewPosition : KinematicState -> KinematicState
 findNewPosition kinematicState =
     { kinematicState
         | position = Point2d.translateBy kinematicState.velocity kinematicState.position
-        , velocity = Vector2d.scaleBy 0.85 kinematicState.velocity
+        , velocity = Vector2d.scaleBy 0.97 kinematicState.velocity
     }
 
 
