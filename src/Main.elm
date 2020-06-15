@@ -9,7 +9,7 @@ import Json.Decode
 import Pixels exposing (Pixels)
 import Point2d exposing (Point2d)
 import Svg exposing (Svg)
-import Svg.Attributes exposing (cx, cy, height, r, rx, ry, width, x, xlinkHref, y)
+import Svg.Attributes exposing (cx, cy, height, r, rx, ry, transform, width, x, xlinkHref, y)
 import Time exposing (Posix)
 import Vector2d exposing (Vector2d)
 
@@ -519,6 +519,18 @@ zOrder component =
             999
 
 
+createRotationString : KinematicState -> CircleStyling -> String
+createRotationString kstate styling =
+    let
+        x =
+            (Point2d.toPixels kstate.position).x - (toFloat styling.radius / 2)
+
+        y =
+            (Point2d.toPixels kstate.position).y - (toFloat styling.radius / 2)
+    in
+    "rotate(90 " ++ String.fromFloat x ++ " " ++ String.fromFloat y ++ ")"
+
+
 render : Component -> Maybe (Svg Msg)
 render zeComponent =
     case zeComponent of
@@ -532,6 +544,7 @@ render zeComponent =
                             , width <| String.fromInt styling.radius
                             , height <| String.fromInt styling.radius
                             , xlinkHref path
+                            , transform <| createRotationString location
                             ]
                             []
 
