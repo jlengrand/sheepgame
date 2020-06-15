@@ -1,7 +1,9 @@
 module Main exposing (..)
 
+import Angle
 import Browser exposing (Document)
 import Browser.Events exposing (onAnimationFrame, onKeyDown)
+import Direction2d
 import Element exposing (Element, Orientation(..), centerX, fill)
 import Element.Font as Font
 import Html exposing (Html)
@@ -527,8 +529,23 @@ createRotationString kstate styling =
 
         y =
             (Point2d.toPixels kstate.position).y - (toFloat styling.radius / 2)
+
+        direction =
+            Vector2d.direction kstate.velocity
+
+        angle =
+            -90.0
+                + (case direction of
+                    Just d ->
+                        d
+                            |> Direction2d.toAngle
+                            |> Angle.inDegrees
+
+                    _ ->
+                        0
+                  )
     in
-    "rotate(90 " ++ String.fromFloat x ++ " " ++ String.fromFloat y ++ ")"
+    "rotate(" ++ String.fromFloat angle ++ " " ++ String.fromFloat x ++ " " ++ String.fromFloat y ++ ")"
 
 
 render : Component -> Maybe (Svg Msg)
@@ -544,7 +561,7 @@ render zeComponent =
                             , width <| String.fromInt styling.radius
                             , height <| String.fromInt styling.radius
                             , xlinkHref path
-                            , transform <| createRotationString location
+                            , transform <| createRotationString location styling
                             ]
                             []
 
