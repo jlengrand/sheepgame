@@ -525,10 +525,10 @@ createRotationString : KinematicState -> CircleStyling -> String
 createRotationString kstate styling =
     let
         x =
-            (Point2d.toPixels kstate.position).x - (toFloat styling.radius / 2)
+            (Point2d.toPixels kstate.position).x + (toFloat styling.radius / 2)
 
         y =
-            (Point2d.toPixels kstate.position).y - (toFloat styling.radius / 2)
+            (Point2d.toPixels kstate.position).y + (toFloat styling.radius / 2)
 
         direction =
             Vector2d.direction kstate.velocity
