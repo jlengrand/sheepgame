@@ -83,7 +83,7 @@ type alias CircleStyling =
 
 
 sheepStyling =
-    CircleStyling 5 "#9bf6ff" Maybe.Nothing
+    CircleStyling 25 "#9bf6ff" <| Just "/static/animals/elephant.png"
 
 
 dogStyling =
