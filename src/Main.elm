@@ -9,6 +9,7 @@ import Html exposing (Html)
 import Json.Decode
 import Pixels exposing (Pixels)
 import Point2d exposing (Point2d)
+import Quantity
 import Svg exposing (Svg)
 import Svg.Attributes exposing (cx, cy, r, rx, ry, x, y)
 import Time exposing (Posix)
@@ -278,9 +279,39 @@ avoid avoider avoidees =
         Just avoiderKs ->
             let
                 desired =
-                    avoidees |> List.map (\avoidee -> Vector2d.from avoiderKs.position avoidee.position |> Vector2d.scaleBy -0.005) |> Vector2d.sum
+                    avoidees
+                        |> List.map
+                            (\avoidee ->
+                                let
+                                    distance =
+                                        Vector2d.from avoiderKs.position avoidee.position
+
+                                    distancevalue =
+                                        Pixels.inPixels (Vector2d.length distance)
+
+                                    scaled =
+                                        if distancevalue > 200 then
+                                            0
+
+                                        else
+                                            100 / distancevalue
+
+                                    -- |> reverseParabola
+                                in
+                                distance
+                                    |> Vector2d.direction
+                                    |> Maybe.map (Vector2d.withLength (Pixels.pixels scaled))
+                                    |> Maybe.withDefault (Vector2d.pixels 0 0)
+                                    |> Vector2d.reverse
+                            )
+                        |> Vector2d.sum
             in
             applyForce avoider desired
+
+
+reverseParabola : Float -> Float
+reverseParabola x =
+    x
 
 
 
