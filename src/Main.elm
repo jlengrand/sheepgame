@@ -48,6 +48,8 @@ type Component
     | ScoreComponent
     | LocationComponent KinematicState CircleStyling
     | RenderComponent (List Component -> Svg.Svg Msg)
+    | AvoidComponent Float
+    | AvoideeComponent
 
 
 type alias KinematicState =
@@ -112,14 +114,36 @@ type alias Flock =
 
 
 startingSheeps =
-    [ { entityType = Sheep, components = [ LocationComponent (KinematicState (Point2d.pixels 200 100) (Vector2d.pixels 0 0)) sheepStyling ] }
-    , { entityType = Sheep, components = [ LocationComponent (KinematicState (Point2d.pixels 300 400) (Vector2d.pixels 0 0)) sheepStyling ] }
+    [ { entityType = Sheep
+      , components =
+            [ LocationComponent (KinematicState (Point2d.pixels 200 100) (Vector2d.pixels 0 0)) sheepStyling
+            , AvoidComponent 1
+            ]
+      }
+    , { entityType = Sheep
+      , components =
+            [ LocationComponent (KinematicState (Point2d.pixels 200 150) (Vector2d.pixels 0 0)) sheepStyling
+            , AvoidComponent 1
+            ]
+      }
+    , { entityType = Sheep
+      , components =
+            [ LocationComponent (KinematicState (Point2d.pixels 250 60) (Vector2d.pixels 0 0)) sheepStyling
+            , AvoidComponent 1
+            ]
+      }
+    , { entityType = Sheep
+      , components =
+            [ LocationComponent (KinematicState (Point2d.pixels 250 30) (Vector2d.pixels 0 0)) sheepStyling
+            , AvoidComponent 1
+            ]
+      }
     ]
 
 
 startingDog =
     [ { entityType = Dog
-      , components = [ LocationComponent (KinematicState (Point2d.pixels 50 50) (Vector2d.pixels 0 0)) dogStyling, KeyboardComponent ]
+      , components = [ LocationComponent (KinematicState (Point2d.pixels 50 50) (Vector2d.pixels 0 0)) dogStyling, KeyboardComponent, AvoideeComponent ]
       }
     ]
 
@@ -218,20 +242,137 @@ updatePositions entities =
 updateVelocities : Maybe Direction -> Entities -> Entities
 updateVelocities maybeDirection entities =
     -- TODO : here we handle the change of velocity of sheeps and dogs
-    case maybeDirection of
-        Maybe.Nothing ->
-            entities
+    List.map
+        (\e ->
+            if hasKeyboardComponent e then
+                { e | components = updateVelocityOfDogs e.components maybeDirection }
 
-        Just direction ->
-            List.map
-                (\e ->
-                    if hasKeyboardComponent e then
-                        { e | components = updateVelocityOfDogs e.components direction }
+            else if hasAvoidComponent e then
+                let
+                    avoideeLocations =
+                        getAvoideesLocation entities
+                in
+                { e | components = avoid e.components avoideeLocations }
 
-                    else
-                        e
-                )
-                entities
+            else
+                e
+        )
+        entities
+
+
+avoid : List Component -> List KinematicState -> List Component
+avoid avoider avoidees =
+    -- TODO:
+    -- Closer: More force
+    -- We might need Acceleration
+    -- Make walls avoidees
+    let
+        avoiderPostion =
+            List.filterMap getKinemeticState avoider
+    in
+    -- We only use the first one!
+    case List.head avoiderPostion of
+        Nothing ->
+            avoider
+
+        Just avoiderKs ->
+            let
+                desired =
+                    avoidees |> List.map (\avoidee -> Vector2d.from avoiderKs.position avoidee.position |> Vector2d.scaleBy -0.005) |> Vector2d.sum
+            in
+            applyForce avoider desired
+
+
+
+-- unitInDirection : Vector2d Pixels TopLeftCoordinates -> Vector2d Pixels TopLeftCoordinates
+-- unitInDirection vector =
+--     Vector2d.direction vector
+--         |> Maybe.map Direction2d.toVector
+--         |> Maybe.withDefault vector
+
+
+applyForce : List Component -> Vector2d Pixels TopLeftCoordinates -> List Component
+applyForce components force =
+    components
+        |> List.map
+            (\c ->
+                case c of
+                    LocationComponent ks styling ->
+                        LocationComponent
+                            { position = ks.position
+                            , velocity = Vector2d.scaleBy 0.35 (Vector2d.plus ks.velocity force)
+                            }
+                            styling
+
+                    _ ->
+                        c
+            )
+
+
+desiredAvoid : Point2d Pixels TopLeftCoordinates -> KinematicState -> Vector2d Pixels TopLeftCoordinates
+desiredAvoid myPosition avoideePostion =
+    Vector2d.from myPosition avoideePostion.position
+
+
+
+-- steering = desired - velocity
+-- type alias KinematicState =
+--     { position : Point2d Pixels TopLeftCoordinates
+--     , velocity : Vector2d Pixels TopLeftCoordinates
+--     }
+
+
+getAvoideesLocation : Entities -> List KinematicState
+getAvoideesLocation entities =
+    let
+        avoidees =
+            List.filter hasAvoideeComponent entities
+    in
+    avoidees
+        |> List.concatMap
+            (\entity ->
+                entity.components
+                    |> List.filterMap
+                        getKinemeticState
+            )
+
+
+getKinemeticState : Component -> Maybe KinematicState
+getKinemeticState c =
+    case c of
+        LocationComponent k _ ->
+            Just k
+
+        _ ->
+            Nothing
+
+
+hasAvoidComponent : Entity -> Bool
+hasAvoidComponent entity =
+    List.any
+        (\c ->
+            case c of
+                AvoidComponent _ ->
+                    True
+
+                _ ->
+                    False
+        )
+        entity.components
+
+
+hasAvoideeComponent : Entity -> Bool
+hasAvoideeComponent entity =
+    List.any
+        (\c ->
+            case c of
+                AvoideeComponent ->
+                    True
+
+                _ ->
+                    False
+        )
+        entity.components
 
 
 hasKeyboardComponent : Entity -> Bool
@@ -248,18 +389,23 @@ hasKeyboardComponent entity =
         entity.components
 
 
-updateVelocityOfDogs : List Component -> Direction -> List Component
-updateVelocityOfDogs components direction =
-    List.map
-        (\c ->
-            case c of
-                LocationComponent kinematicState styling ->
-                    LocationComponent (findNewVelocityOfDog direction kinematicState) styling
+updateVelocityOfDogs : List Component -> Maybe Direction -> List Component
+updateVelocityOfDogs components mdirection =
+    case mdirection of
+        Just direction ->
+            List.map
+                (\c ->
+                    case c of
+                        LocationComponent kinematicState styling ->
+                            LocationComponent (findNewVelocityOfDog direction kinematicState) styling
 
-                _ ->
-                    c
-        )
-        components
+                        _ ->
+                            c
+                )
+                components
+
+        Nothing ->
+            components
 
 
 findNewVelocityOfDog : Direction -> KinematicState -> KinematicState
