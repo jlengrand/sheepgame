@@ -2,7 +2,6 @@ module Main exposing (..)
 
 import Browser exposing (Document)
 import Browser.Events exposing (onAnimationFrame, onKeyDown)
-import Direction2d
 import Element exposing (Element, Orientation(..), centerX, fill)
 import Element.Font as Font
 import Html exposing (Html)
@@ -10,7 +9,7 @@ import Json.Decode
 import Pixels exposing (Pixels)
 import Point2d exposing (Point2d)
 import Svg exposing (Svg)
-import Svg.Attributes exposing (cx, cy, r, rx, ry, x, y)
+import Svg.Attributes exposing (cx, cy, height, r, rx, ry, width, x, xlinkHref, y)
 import Time exposing (Posix)
 import Vector2d exposing (Vector2d)
 
@@ -47,7 +46,6 @@ type Component
     | AreaComponent Int Int Int Int AreaStyling
     | ScoreComponent
     | LocationComponent KinematicState CircleStyling
-    | RenderComponent (List Component -> Svg.Svg Msg)
     | AvoidComponent Float
     | AvoideeComponent
 
@@ -70,15 +68,16 @@ type alias AreaStyling =
 type alias CircleStyling =
     { radius : Int
     , color : String
+    , imagePath : Maybe String
     }
 
 
 sheepStyling =
-    CircleStyling 5 "#9bf6ff"
+    CircleStyling 5 "#9bf6ff" Maybe.Nothing
 
 
 dogStyling =
-    CircleStyling 10 "#ffc6ff"
+    CircleStyling 25 "#ffc6ff" <| Just "/static/animals/snake.png"
 
 
 areaStyling =
@@ -524,14 +523,27 @@ render : Component -> Maybe (Svg Msg)
 render zeComponent =
     case zeComponent of
         LocationComponent location styling ->
-            Just <|
-                Svg.circle
-                    [ cx <| String.fromFloat (Point2d.toPixels location.position).x
-                    , cy <| String.fromFloat (Point2d.toPixels location.position).y
-                    , r <| String.fromInt styling.radius
-                    , Svg.Attributes.fill styling.color
-                    ]
-                    []
+            case styling.imagePath of
+                Just path ->
+                    Just <|
+                        Svg.image
+                            [ x <| String.fromFloat (Point2d.toPixels location.position).x
+                            , y <| String.fromFloat (Point2d.toPixels location.position).y
+                            , width <| String.fromInt styling.radius
+                            , height <| String.fromInt styling.radius
+                            , xlinkHref path
+                            ]
+                            []
+
+                _ ->
+                    Just <|
+                        Svg.circle
+                            [ cx <| String.fromFloat (Point2d.toPixels location.position).x
+                            , cy <| String.fromFloat (Point2d.toPixels location.position).y
+                            , r <| String.fromInt styling.radius
+                            , Svg.Attributes.fill styling.color
+                            ]
+                            []
 
         AreaComponent zeX zeY zeWidth zeHeight styling ->
             Just <|
