@@ -10,6 +10,7 @@ import Html exposing (Html)
 import Json.Decode
 import Pixels exposing (Pixels)
 import Point2d exposing (Point2d)
+import Quantity
 import Svg exposing (Svg)
 import Svg.Attributes exposing (cx, cy, height, r, rx, ry, transform, width, x, xlinkHref, y)
 import Time exposing (Posix)
@@ -48,13 +49,20 @@ type Component
     | AreaComponent Int Int Int Int AreaStyling
     | ScoreComponent
     | LocationComponent KinematicState CircleStyling
-    | AvoidComponent Float
+    | RenderComponent (List Component -> Svg.Svg Msg)
+    | AvoidComponent AvoiderSettings
     | AvoideeComponent
 
 
 type alias KinematicState =
     { position : Point2d Pixels TopLeftCoordinates
     , velocity : Vector2d Pixels TopLeftCoordinates
+    }
+
+
+type alias AvoiderSettings =
+    { strength : Float
+    , avoid_radius : Float
     }
 
 
@@ -75,7 +83,7 @@ type alias CircleStyling =
 
 
 sheepStyling =
-    CircleStyling 5 "#9bf6ff" Maybe.Nothing
+    CircleStyling 25 "#9bf6ff" <| Just "/static/animals/elephant.png"
 
 
 dogStyling =
@@ -114,29 +122,35 @@ type alias Flock =
     List Sheep
 
 
+defaultAvoiderSettings =
+    { strength = 100
+    , avoid_radius = 200
+    }
+
+
 startingSheeps =
     [ { entityType = Sheep
       , components =
             [ LocationComponent (KinematicState (Point2d.pixels 200 100) (Vector2d.pixels 0 0)) sheepStyling
-            , AvoidComponent 1
+            , AvoidComponent defaultAvoiderSettings
             ]
       }
     , { entityType = Sheep
       , components =
             [ LocationComponent (KinematicState (Point2d.pixels 200 150) (Vector2d.pixels 0 0)) sheepStyling
-            , AvoidComponent 1
+            , AvoidComponent defaultAvoiderSettings
             ]
       }
     , { entityType = Sheep
       , components =
             [ LocationComponent (KinematicState (Point2d.pixels 250 60) (Vector2d.pixels 0 0)) sheepStyling
-            , AvoidComponent 1
+            , AvoidComponent defaultAvoiderSettings
             ]
       }
     , { entityType = Sheep
       , components =
             [ LocationComponent (KinematicState (Point2d.pixels 250 30) (Vector2d.pixels 0 0)) sheepStyling
-            , AvoidComponent 1
+            , AvoidComponent defaultAvoiderSettings
             ]
       }
     ]
@@ -263,13 +277,12 @@ updateVelocities maybeDirection entities =
 
 avoid : List Component -> List KinematicState -> List Component
 avoid avoider avoidees =
-    -- TODO:
-    -- Closer: More force
-    -- We might need Acceleration
-    -- Make walls avoidees
     let
         avoiderPostion =
             List.filterMap getKinemeticState avoider
+
+        avoiderAvoiderSettings =
+            List.filterMap getAvoiderSettings avoider
     in
     -- We only use the first one!
     case List.head avoiderPostion of
@@ -277,19 +290,39 @@ avoid avoider avoidees =
             avoider
 
         Just avoiderKs ->
-            let
-                desired =
-                    avoidees |> List.map (\avoidee -> Vector2d.from avoiderKs.position avoidee.position |> Vector2d.scaleBy -0.005) |> Vector2d.sum
-            in
-            applyForce avoider desired
+            case List.head avoiderAvoiderSettings of
+                Just avoiderAs ->
+                    let
+                        desired =
+                            avoidees
+                                |> List.map
+                                    (\avoidee ->
+                                        let
+                                            distance =
+                                                Vector2d.from avoiderKs.position avoidee.position
 
+                                            distancevalue =
+                                                Pixels.inPixels (Vector2d.length distance)
 
+                                            scaled =
+                                                if distancevalue > avoiderAs.avoid_radius then
+                                                    0
 
--- unitInDirection : Vector2d Pixels TopLeftCoordinates -> Vector2d Pixels TopLeftCoordinates
--- unitInDirection vector =
---     Vector2d.direction vector
---         |> Maybe.map Direction2d.toVector
---         |> Maybe.withDefault vector
+                                                else
+                                                    avoiderAs.strength / distancevalue
+                                        in
+                                        distance
+                                            |> Vector2d.direction
+                                            |> Maybe.map (Vector2d.withLength (Pixels.pixels scaled))
+                                            |> Maybe.withDefault (Vector2d.pixels 0 0)
+                                            |> Vector2d.reverse
+                                    )
+                                |> Vector2d.sum
+                    in
+                    applyForce avoider desired
+
+                Nothing ->
+                    avoider
 
 
 applyForce : List Component -> Vector2d Pixels TopLeftCoordinates -> List Component
@@ -315,14 +348,6 @@ desiredAvoid myPosition avoideePostion =
     Vector2d.from myPosition avoideePostion.position
 
 
-
--- steering = desired - velocity
--- type alias KinematicState =
---     { position : Point2d Pixels TopLeftCoordinates
---     , velocity : Vector2d Pixels TopLeftCoordinates
---     }
-
-
 getAvoideesLocation : Entities -> List KinematicState
 getAvoideesLocation entities =
     let
@@ -343,6 +368,16 @@ getKinemeticState c =
     case c of
         LocationComponent k _ ->
             Just k
+
+        _ ->
+            Nothing
+
+
+getAvoiderSettings : Component -> Maybe AvoiderSettings
+getAvoiderSettings c =
+    case c of
+        AvoidComponent a ->
+            Just a
 
         _ ->
             Nothing
