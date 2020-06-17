@@ -16,6 +16,10 @@ import Time exposing (Posix)
 import Vector2d exposing (Vector2d)
 
 
+frictionRate =
+    0.96
+
+
 type TopLeftCoordinates
     = TopLeftCoordinates
 
@@ -49,12 +53,18 @@ type Component
     | LocationComponent KinematicState CircleStyling
     | AvoidComponent AvoiderSettings
     | AvoideeComponent
-    | BlockComponent
+    | BlockComponent Int
 
 
 type alias KinematicState =
     { position : Point2d Pixels TopLeftCoordinates
     , velocity : Vector2d Pixels TopLeftCoordinates
+    }
+
+
+type alias KinematicStateAndBlockRadius =
+    { kinematicState : KinematicState
+    , blockRadius : Int
     }
 
 
@@ -136,7 +146,7 @@ startingSheeps =
       , components =
             [ LocationComponent (KinematicState (Point2d.pixels 10 10) (Vector2d.pixels 0 0)) treeStyling
             , AvoideeComponent
-            , BlockComponent
+            , BlockComponent 10
             ]
       }
     , { entityType = Sheep
@@ -360,6 +370,22 @@ desiredAvoid myPosition avoideePostion =
     Vector2d.from myPosition avoideePostion.position
 
 
+
+--getBlocksKinematicStateAndRadius : Entities -> List KinematicStateAndBlockRadius
+--getBlocksKinematicStateAndRadius entities =
+--    let
+--        blocks =
+--            List.filter hasBlockComponent entities
+--    in
+--    blocks
+--        |> List.concatMap
+--            (\entity ->
+--                entity.components
+--                    |> List.filterMap
+--                        getKinemeticState
+--            )
+
+
 getAvoideesLocation : Entities -> List KinematicState
 getAvoideesLocation entities =
     let
@@ -393,6 +419,20 @@ getAvoiderSettings c =
 
         _ ->
             Nothing
+
+
+hasBlockComponent : Entity -> Bool
+hasBlockComponent entity =
+    List.any
+        (\c ->
+            case c of
+                BlockComponent _ ->
+                    True
+
+                _ ->
+                    False
+        )
+        entity.components
 
 
 hasAvoidComponent : Entity -> Bool
@@ -477,6 +517,10 @@ findNewVelocityOfDog direction kstate =
 
 updatePositionOfLocationComponent : List Component -> List Component
 updatePositionOfLocationComponent components =
+    --let
+    --    blockComponents =
+    --        components.
+    --in
     List.map
         (\c ->
             case c of
@@ -493,7 +537,7 @@ findNewPosition : KinematicState -> KinematicState
 findNewPosition kinematicState =
     { kinematicState
         | position = Point2d.translateBy kinematicState.velocity kinematicState.position
-        , velocity = Vector2d.scaleBy 0.96 kinematicState.velocity
+        , velocity = Vector2d.scaleBy frictionRate kinematicState.velocity
     }
 
 
