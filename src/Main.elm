@@ -517,9 +517,27 @@ gameView model =
             Svg.rect
                 [ Svg.Attributes.height <| String.fromInt <| Tuple.first model.gameSettings.size
                 , Svg.Attributes.width <| String.fromInt <| Tuple.second model.gameSettings.size
-                , Svg.Attributes.fill "#bdb2ff"
+                , Svg.Attributes.fill "url(#Grass)"
                 ]
                 []
+
+        patternDefs =
+            Svg.pattern
+                [ Svg.Attributes.id "Grass"
+                , Svg.Attributes.x "0"
+                , Svg.Attributes.y "0"
+                , Svg.Attributes.width "64"
+                , Svg.Attributes.height "64"
+                , Svg.Attributes.patternUnits "userSpaceOnUse"
+                , Svg.Attributes.patternContentUnits "Default"
+                ]
+                [ Svg.image
+                    [ width "64"
+                    , height "64"
+                    , xlinkHref "static/tiles/grass.png"
+                    ]
+                    []
+                ]
 
         renderComponents =
             model.entities
@@ -534,8 +552,8 @@ gameView model =
         [ Svg.Attributes.height <| String.fromInt <| Tuple.first model.gameSettings.size
         , Svg.Attributes.width <| String.fromInt <| Tuple.second model.gameSettings.size
         ]
-        (backgroundRectangle
-            :: (List.filterMap identity <|
+        ([ patternDefs, backgroundRectangle ]
+            ++ (List.filterMap identity <|
                     List.map render <|
                         List.sortBy zOrder renderComponents
                )
