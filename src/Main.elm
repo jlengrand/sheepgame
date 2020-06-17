@@ -72,6 +72,7 @@ type alias Entities =
 
 type alias AreaStyling =
     { color : String
+    , patternName : Maybe String
     }
 
 
@@ -83,15 +84,15 @@ type alias CircleStyling =
 
 
 sheepStyling =
-    CircleStyling 25 "#9bf6ff" <| Just "/static/animals/elephant.png"
+    CircleStyling 35 "#9bf6ff" <| Just "/static/animals/goat.png"
 
 
 dogStyling =
-    CircleStyling 25 "#ffc6ff" <| Just "/static/animals/snake.png"
+    CircleStyling 35 "#ffc6ff" <| Just "/static/animals/dog.png"
 
 
 areaStyling =
-    AreaStyling "#fdffb6"
+    AreaStyling "#fdffb6" <| Just "dirt"
 
 
 type EntityType
@@ -517,27 +518,32 @@ gameView model =
             Svg.rect
                 [ Svg.Attributes.height <| String.fromInt <| Tuple.first model.gameSettings.size
                 , Svg.Attributes.width <| String.fromInt <| Tuple.second model.gameSettings.size
-                , Svg.Attributes.fill "url(#Grass)"
+                , Svg.Attributes.fill "url(#grass)"
                 ]
                 []
 
         patternDefs =
-            Svg.pattern
-                [ Svg.Attributes.id "Grass"
-                , Svg.Attributes.x "0"
-                , Svg.Attributes.y "0"
-                , Svg.Attributes.width "64"
-                , Svg.Attributes.height "64"
-                , Svg.Attributes.patternUnits "userSpaceOnUse"
-                , Svg.Attributes.patternContentUnits "Default"
-                ]
-                [ Svg.image
-                    [ width "64"
-                    , height "64"
-                    , xlinkHref "static/tiles/grass.png"
-                    ]
-                    []
-                ]
+            Svg.defs [] <|
+                List.map
+                    (\id ->
+                        Svg.pattern
+                            [ Svg.Attributes.id id
+                            , Svg.Attributes.x "0"
+                            , Svg.Attributes.y "0"
+                            , Svg.Attributes.width "64"
+                            , Svg.Attributes.height "64"
+                            , Svg.Attributes.patternUnits "userSpaceOnUse"
+                            , Svg.Attributes.patternContentUnits "Default"
+                            ]
+                            [ Svg.image
+                                [ width "64"
+                                , height "64"
+                                , xlinkHref <| "static/tiles/" ++ id ++ ".png"
+                                ]
+                                []
+                            ]
+                    )
+                    [ "grass", "dirt" ]
 
         renderComponents =
             model.entities
@@ -629,13 +635,22 @@ render zeComponent =
                             []
 
         AreaComponent zeX zeY zeWidth zeHeight styling ->
+            let
+                fillStyling =
+                    case styling.patternName of
+                        Just id ->
+                            Svg.Attributes.fill <| "Url(#" ++ id ++ ")"
+
+                        Nothing ->
+                            Svg.Attributes.fill styling.color
+            in
             Just <|
                 Svg.rect
                     [ x <| String.fromInt zeX
                     , y <| String.fromInt zeY
                     , Svg.Attributes.width <| String.fromInt zeWidth
                     , Svg.Attributes.height <| String.fromInt zeHeight
-                    , Svg.Attributes.fill styling.color
+                    , fillStyling
                     , rx "0"
                     , ry "0"
                     ]
