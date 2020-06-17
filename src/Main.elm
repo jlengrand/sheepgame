@@ -10,7 +10,6 @@ import Html exposing (Html)
 import Json.Decode
 import Pixels exposing (Pixels)
 import Point2d exposing (Point2d)
-import Quantity
 import Svg exposing (Svg)
 import Svg.Attributes exposing (cx, cy, height, r, rx, ry, transform, width, x, xlinkHref, y)
 import Time exposing (Posix)
@@ -47,11 +46,10 @@ type alias GameSettings =
 type Component
     = KeyboardComponent
     | AreaComponent Int Int Int Int AreaStyling
-    | ScoreComponent
     | LocationComponent KinematicState CircleStyling
-    | RenderComponent (List Component -> Svg.Svg Msg)
     | AvoidComponent AvoiderSettings
     | AvoideeComponent
+    | BlockComponent
 
 
 type alias KinematicState =
@@ -82,6 +80,10 @@ type alias CircleStyling =
     }
 
 
+treeStyling =
+    CircleStyling 10 "#caffbf" <| Maybe.Nothing
+
+
 sheepStyling =
     CircleStyling 25 "#9bf6ff" <| Just "/static/animals/elephant.png"
 
@@ -98,6 +100,7 @@ type EntityType
     = Sheep
     | Dog
     | Target
+    | Tree
 
 
 type alias Entity =
@@ -129,7 +132,14 @@ defaultAvoiderSettings =
 
 
 startingSheeps =
-    [ { entityType = Sheep
+    [ { entityType = Tree
+      , components =
+            [ LocationComponent (KinematicState (Point2d.pixels 10 10) (Vector2d.pixels 0 0)) treeStyling
+            , AvoideeComponent
+            , BlockComponent
+            ]
+      }
+    , { entityType = Sheep
       , components =
             [ LocationComponent (KinematicState (Point2d.pixels 200 100) (Vector2d.pixels 0 0)) sheepStyling
             , AvoidComponent defaultAvoiderSettings
@@ -158,7 +168,11 @@ startingSheeps =
 
 startingDog =
     [ { entityType = Dog
-      , components = [ LocationComponent (KinematicState (Point2d.pixels 50 50) (Vector2d.pixels 0 0)) dogStyling, KeyboardComponent, AvoideeComponent ]
+      , components =
+            [ LocationComponent (KinematicState (Point2d.pixels 50 50) (Vector2d.pixels 0 0)) dogStyling
+            , KeyboardComponent
+            , AvoideeComponent
+            ]
       }
     ]
 
@@ -246,7 +260,6 @@ update msg model =
 
 updatePositions : Entities -> Entities
 updatePositions entities =
-    -- TODO : Here we just update the positions based on speed (and reduce speed most likely)
     List.map
         (\e ->
             { e | components = updatePositionOfLocationComponent e.components }
@@ -256,7 +269,6 @@ updatePositions entities =
 
 updateVelocities : Maybe Direction -> Entities -> Entities
 updateVelocities maybeDirection entities =
-    -- TODO : here we handle the change of velocity of sheeps and dogs
     List.map
         (\e ->
             if hasKeyboardComponent e then
