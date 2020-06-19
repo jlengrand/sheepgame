@@ -98,7 +98,7 @@ type alias CircleStyling =
 
 
 treeStyling =
-    CircleStyling 10 "#caffbf" <| Maybe.Nothing
+    CircleStyling 64 "#caffbf" <| Just "/static/objects/tree.png"
 
 
 sheepStyling =
@@ -148,13 +148,27 @@ defaultAvoiderSettings =
     }
 
 
-startingSheeps =
+startingTrees =
     [ { entityType = Tree
       , components =
-            [ BlockComponent (Circle2d.atPoint (Point2d.pixels 10 10) (Pixels.pixels 10)) treeStyling
+            [ BlockComponent (Circle2d.atPoint (Point2d.pixels 140 70) (Pixels.pixels 32)) treeStyling
             ]
       }
-    , { entityType = Sheep
+    , { entityType = Tree
+      , components =
+            [ BlockComponent (Circle2d.atPoint (Point2d.pixels 380 480) (Pixels.pixels 32)) treeStyling
+            ]
+      }
+    , { entityType = Tree
+      , components =
+            [ BlockComponent (Circle2d.atPoint (Point2d.pixels 200 320) (Pixels.pixels 32)) treeStyling
+            ]
+      }
+    ]
+
+
+startingSheeps =
+    [ { entityType = Sheep
       , components =
             [ LocationComponent (KinematicState (Point2d.pixels 200 100) (Vector2d.pixels 0 0)) sheepStyling
             , AvoidComponent defaultAvoiderSettings
@@ -202,7 +216,7 @@ target =
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( { tick = 0
-      , entities = startingSheeps ++ startingDog ++ target
+      , entities = startingSheeps ++ startingDog ++ target ++ startingTrees
       , gameSettings = { size = ( 600, 600 ), color = "#bdb2ff" }
       , lastTick = Time.millisToPosix 0
       , currentDirection = Maybe.Nothing
@@ -325,20 +339,29 @@ findNewPositionMaybeBlocked blockcircles kinematicState =
             findNewPosition kinematicState
 
         blockers =
-            List.filter (\b -> circlesCollide kinematicState.position <| Circle2d.centerPoint b) blockcircles
+            List.filter (\b -> circlesCollide newPosition.position <| b) blockcircles
     in
     case List.head blockers of
-        Just _ ->
-            findNewPosition { kinematicState | velocity = Vector2d.reverse kinematicState.velocity }
+        Just blocker ->
+            findNewPosition <|
+                findNewPosition
+                    { kinematicState
+                        | velocity =
+                            Vector2d.perpendicularTo <| Vector2d.scaleBy 2 <| Vector2d.reverse <| kinematicState.velocity
+                    }
 
         _ ->
             newPosition
 
 
-circlesCollide : Point2d Pixels TopLeftCoordinates -> Point2d Pixels TopLeftCoordinates -> Bool
+circlesCollide : Point2d Pixels TopLeftCoordinates -> Circle2d Pixels TopLeftCoordinates -> Bool
 circlesCollide p1 p2 =
-    -- TODO: Replace 20 with the sum of both radi
-    Quantity.lessThan (Pixels.pixels 20) (Point2d.distanceFrom p1 p2)
+    let
+        threshold =
+            -- TODO: maybe also add radius of collider
+            Circle2d.radius p2
+    in
+    Quantity.lessThan threshold (Point2d.distanceFrom p1 (Circle2d.centerPoint p2))
 
 
 findNewPosition : KinematicState -> KinematicState
@@ -662,7 +685,7 @@ zOrder component =
             -1
 
         BlockComponent _ _ ->
-            -2
+            1
 
         _ ->
             999
@@ -745,14 +768,27 @@ render zeComponent =
                     []
 
         BlockComponent circle styling ->
-            Just <|
-                Svg.circle
-                    [ cx <| String.fromFloat <| (Point2d.toPixels <| Circle2d.centerPoint circle).x
-                    , cy <| String.fromFloat <| (Point2d.toPixels <| Circle2d.centerPoint circle).y
-                    , r <| String.fromFloat <| Pixels.inPixels <| Circle2d.radius circle
-                    , Svg.Attributes.fill styling.color
-                    ]
-                    []
+            case styling.imagePath of
+                Just path ->
+                    Just <|
+                        Svg.image
+                            [ x <| String.fromFloat <| (Point2d.toPixels <| Circle2d.centerPoint circle).x
+                            , y <| String.fromFloat <| (Point2d.toPixels <| Circle2d.centerPoint circle).y
+                            , width <| String.fromInt styling.radius
+                            , height <| String.fromInt styling.radius
+                            , xlinkHref path
+                            ]
+                            []
+
+                _ ->
+                    Just <|
+                        Svg.circle
+                            [ cx <| String.fromFloat <| (Point2d.toPixels <| Circle2d.centerPoint circle).x
+                            , cy <| String.fromFloat <| (Point2d.toPixels <| Circle2d.centerPoint circle).y
+                            , r <| String.fromFloat <| Pixels.inPixels <| Circle2d.radius circle
+                            , Svg.Attributes.fill styling.color
+                            ]
+                            []
 
         _ ->
             Nothing
