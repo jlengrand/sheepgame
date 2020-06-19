@@ -280,7 +280,7 @@ updatePositions entities =
     in
     List.map
         (\e ->
-            { e | components = updatePositionOfLocationComponent e.components }
+            { e | components = updatePositionOfLocationComponent blockCircles e.components }
         )
         entities
 
@@ -303,18 +303,35 @@ findBlockCircles entities =
             )
 
 
-updatePositionOfLocationComponent : List Component -> List Component
-updatePositionOfLocationComponent components =
+updatePositionOfLocationComponent : List BlockCircle -> List Component -> List Component
+updatePositionOfLocationComponent blockCircles components =
     List.map
         (\c ->
             case c of
                 LocationComponent location styling ->
-                    LocationComponent (findNewPosition location) styling
+                    LocationComponent (findNewPositionMaybeBlocked blockCircles location) styling
 
                 _ ->
                     c
         )
         components
+
+
+findNewPositionMaybeBlocked : List BlockCircle -> KinematicState -> KinematicState
+findNewPositionMaybeBlocked blockcircles kinematicState =
+    let
+        newPosition =
+            findNewPosition kinematicState
+
+        blockers =
+            List.filter (\b -> Circle2d.contains kinematicState.position b) blockcircles
+    in
+    case List.head blockers of
+        Just _ ->
+            kinematicState
+
+        _ ->
+            newPosition
 
 
 findNewPosition : KinematicState -> KinematicState
