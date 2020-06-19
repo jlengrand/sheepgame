@@ -274,11 +274,33 @@ update msg model =
 
 updatePositions : Entities -> Entities
 updatePositions entities =
+    let
+        blockCircles =
+            findBlockCircles entities
+    in
     List.map
         (\e ->
             { e | components = updatePositionOfLocationComponent e.components }
         )
         entities
+
+
+findBlockCircles : Entities -> List BlockCircle
+findBlockCircles entities =
+    List.filter hasBlockComponent entities
+        |> List.concatMap
+            (\entity ->
+                entity.components
+                    |> List.filterMap
+                        (\c ->
+                            case c of
+                                BlockComponent circle _ ->
+                                    Just circle
+
+                                _ ->
+                                    Nothing
+                        )
+            )
 
 
 updatePositionOfLocationComponent : List Component -> List Component
