@@ -281,6 +281,28 @@ updatePositions entities =
         entities
 
 
+updatePositionOfLocationComponent : List Component -> List Component
+updatePositionOfLocationComponent components =
+    List.map
+        (\c ->
+            case c of
+                LocationComponent location styling ->
+                    LocationComponent (findNewPosition location) styling
+
+                _ ->
+                    c
+        )
+        components
+
+
+findNewPosition : KinematicState -> KinematicState
+findNewPosition kinematicState =
+    { kinematicState
+        | position = Point2d.translateBy kinematicState.velocity kinematicState.position
+        , velocity = Vector2d.scaleBy frictionRate kinematicState.velocity
+    }
+
+
 updateVelocities : Maybe Direction -> Entities -> Entities
 updateVelocities maybeDirection entities =
     List.map
@@ -372,22 +394,6 @@ applyForce components force =
 desiredAvoid : Point2d Pixels TopLeftCoordinates -> KinematicState -> Vector2d Pixels TopLeftCoordinates
 desiredAvoid myPosition avoideePostion =
     Vector2d.from myPosition avoideePostion.position
-
-
-
---getBlocksKinematicStateAndRadius : Entities -> List KinematicStateAndBlockRadius
---getBlocksKinematicStateAndRadius entities =
---    let
---        blocks =
---            List.filter hasBlockComponent entities
---    in
---    blocks
---        |> List.concatMap
---            (\entity ->
---                entity.components
---                    |> List.filterMap
---                        getKinemeticState
---            )
 
 
 getAvoideesLocation : Entities -> List KinematicState
@@ -517,32 +523,6 @@ findNewVelocityOfDog direction kstate =
 
         Other ->
             kstate
-
-
-updatePositionOfLocationComponent : List Component -> List Component
-updatePositionOfLocationComponent components =
-    --let
-    --    blockComponents =
-    --        components.
-    --in
-    List.map
-        (\c ->
-            case c of
-                LocationComponent location styling ->
-                    LocationComponent (findNewPosition location) styling
-
-                _ ->
-                    c
-        )
-        components
-
-
-findNewPosition : KinematicState -> KinematicState
-findNewPosition kinematicState =
-    { kinematicState
-        | position = Point2d.translateBy kinematicState.velocity kinematicState.position
-        , velocity = Vector2d.scaleBy frictionRate kinematicState.velocity
-    }
 
 
 
