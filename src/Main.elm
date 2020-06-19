@@ -349,7 +349,7 @@ avoid : List Component -> List KinematicState -> List Component
 avoid avoider avoidees =
     let
         avoiderPostion =
-            List.filterMap getKinemeticState avoider
+            List.filterMap getKinematicState avoider
 
         avoiderAvoiderSettings =
             List.filterMap getAvoiderSettings avoider
@@ -429,12 +429,12 @@ getAvoideesLocation entities =
             (\entity ->
                 entity.components
                     |> List.filterMap
-                        getKinemeticState
+                        getKinematicState
             )
 
 
-getKinemeticState : Component -> Maybe KinematicState
-getKinemeticState c =
+getKinematicState : Component -> Maybe KinematicState
+getKinematicState c =
     case c of
         LocationComponent k _ ->
             Just k
