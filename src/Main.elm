@@ -3,6 +3,7 @@ module Main exposing (..)
 import Angle
 import Browser exposing (Document)
 import Browser.Events exposing (onAnimationFrame, onKeyDown)
+import Circle2d exposing (Circle2d)
 import Direction2d
 import Element exposing (Element, Orientation(..), centerX, fill)
 import Element.Font as Font
@@ -53,7 +54,11 @@ type Component
     | LocationComponent KinematicState CircleStyling
     | AvoidComponent AvoiderSettings
     | AvoideeComponent
-    | BlockComponent Int
+    | BlockComponent BlockCircle CircleStyling
+
+
+type alias BlockCircle =
+    Circle2d Pixels TopLeftCoordinates
 
 
 type alias KinematicState =
@@ -145,9 +150,7 @@ defaultAvoiderSettings =
 startingSheeps =
     [ { entityType = Tree
       , components =
-            [ LocationComponent (KinematicState (Point2d.pixels 10 10) (Vector2d.pixels 0 0)) treeStyling
-            , AvoideeComponent
-            , BlockComponent 10
+            [ BlockComponent (Circle2d.atPoint (Point2d.pixels 10 10) (Pixels.pixels 10)) treeStyling
             ]
       }
     , { entityType = Sheep
@@ -427,7 +430,7 @@ hasBlockComponent entity =
     List.any
         (\c ->
             case c of
-                BlockComponent _ ->
+                BlockComponent _ _ ->
                     True
 
                 _ ->
@@ -607,7 +610,7 @@ gameView model =
                     (\entity ->
                         entity.components
                             |> List.filter
-                                (\c -> isLocationOrAreaComponent c)
+                                (\c -> isRenderable c)
                     )
     in
     Svg.svg
@@ -631,6 +634,9 @@ zOrder component =
 
         AreaComponent _ _ _ _ _ ->
             -1
+
+        BlockComponent _ _ ->
+            -2
 
         _ ->
             999
@@ -712,17 +718,30 @@ render zeComponent =
                     ]
                     []
 
+        BlockComponent circle styling ->
+            Just <|
+                Svg.circle
+                    [ cx <| String.fromFloat <| (Point2d.toPixels <| Circle2d.centerPoint circle).x
+                    , cy <| String.fromFloat <| (Point2d.toPixels <| Circle2d.centerPoint circle).y
+                    , r <| String.fromFloat <| Pixels.inPixels <| Circle2d.radius circle
+                    , Svg.Attributes.fill styling.color
+                    ]
+                    []
+
         _ ->
             Nothing
 
 
-isLocationOrAreaComponent : Component -> Bool
-isLocationOrAreaComponent component =
+isRenderable : Component -> Bool
+isRenderable component =
     case component of
         LocationComponent _ _ ->
             True
 
         AreaComponent _ _ _ _ _ ->
+            True
+
+        BlockComponent _ _ ->
             True
 
         _ ->
