@@ -11,6 +11,7 @@ import Html exposing (Html)
 import Json.Decode
 import Pixels exposing (Pixels)
 import Point2d exposing (Point2d)
+import Quantity
 import Svg exposing (Svg)
 import Svg.Attributes exposing (cx, cy, height, r, rx, ry, transform, width, x, xlinkHref, y)
 import Time exposing (Posix)
@@ -324,14 +325,20 @@ findNewPositionMaybeBlocked blockcircles kinematicState =
             findNewPosition kinematicState
 
         blockers =
-            List.filter (\b -> Circle2d.contains kinematicState.position b) blockcircles
+            List.filter (\b -> circlesCollide newPosition.position <| Circle2d.centerPoint b) blockcircles
     in
     case List.head blockers of
         Just _ ->
-            kinematicState
+            findNewPosition { kinematicState | velocity = Vector2d.reverse kinematicState.velocity }
 
         _ ->
             newPosition
+
+
+circlesCollide : Point2d Pixels TopLeftCoordinates -> Point2d Pixels TopLeftCoordinates -> Bool
+circlesCollide p1 p2 =
+    -- TODO: Replace 20 with the sum of both radi
+    Quantity.lessThan (Pixels.pixels 20) (Point2d.distanceFrom p1 p2)
 
 
 findNewPosition : KinematicState -> KinematicState
