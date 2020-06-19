@@ -325,7 +325,7 @@ findNewPositionMaybeBlocked blockcircles kinematicState =
             findNewPosition kinematicState
 
         blockers =
-            List.filter (\b -> circlesCollide newPosition.position <| Circle2d.centerPoint b) blockcircles
+            List.filter (\b -> circlesCollide kinematicState.position <| Circle2d.centerPoint b) blockcircles
     in
     case List.head blockers of
         Just _ ->
