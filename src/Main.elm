@@ -62,6 +62,7 @@ type alias KinematicState =
     , velocity : Vector2d Pixels TopLeftCoordinates
     , circleRadius : Float
     , collides : Bool
+    , static : Bool
     }
 
 
@@ -148,17 +149,17 @@ defaultAvoiderSettings =
 startingTrees =
     [ { entityType = Tree
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 140 70) (Vector2d.pixels 0 0) 37.5 True) treeStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 140 70) (Vector2d.pixels 0 0) 37.5 True True) treeStyling
             ]
       }
     , { entityType = Tree
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 380 480) (Vector2d.pixels 0 0) 37.5 True) treeStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 380 480) (Vector2d.pixels 0 0) 37.5 True True) treeStyling
             ]
       }
     , { entityType = Tree
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 200 320) (Vector2d.pixels 0 0) 37.5 True) treeStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 200 320) (Vector2d.pixels 0 0) 37.5 True True) treeStyling
             ]
       }
     ]
@@ -167,25 +168,25 @@ startingTrees =
 startingSheeps =
     [ { entityType = Sheep
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 200 100) (Vector2d.pixels 0 0) 17.5 False) sheepStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 200 100) (Vector2d.pixels 0 0) 17.5 True False) sheepStyling
             , AvoidComponent defaultAvoiderSettings
             ]
       }
     , { entityType = Sheep
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 200 150) (Vector2d.pixels 0 0) 17.5 False) sheepStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 200 150) (Vector2d.pixels 0 0) 17.5 True False) sheepStyling
             , AvoidComponent defaultAvoiderSettings
             ]
       }
     , { entityType = Sheep
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 250 60) (Vector2d.pixels 0 0) 17.5 False) sheepStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 250 60) (Vector2d.pixels 0 0) 17.5 True False) sheepStyling
             , AvoidComponent defaultAvoiderSettings
             ]
       }
     , { entityType = Sheep
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 250 30) (Vector2d.pixels 0 0) 17.5 False) sheepStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 250 30) (Vector2d.pixels 0 0) 17.5 True Basics.False) sheepStyling
             , AvoidComponent defaultAvoiderSettings
             ]
       }
@@ -195,7 +196,7 @@ startingSheeps =
 startingDog =
     [ { entityType = Dog
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 50 50) (Vector2d.pixels 0 0) 17.5 False) dogStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 50 50) (Vector2d.pixels 0 0) 17.5 False False) dogStyling
             , KeyboardComponent
             , AvoideeComponent
             ]
@@ -343,12 +344,12 @@ findNewPositionMaybeBlocked colliders kinematicState =
             List.filter (\b -> circlesCollide kinematicState b) colliders
     in
     case List.head blockers of
-        Just _ ->
+        Just blocker ->
             findNewPosition <|
                 findNewPosition
                     { kinematicState
                         | velocity =
-                            Vector2d.reverse <| kinematicState.velocity
+                            Vector2d.withLength (Pixels.pixels 1.3) <| Maybe.withDefault Direction2d.x <| Vector2d.direction <| Vector2d.from blocker.position kinematicState.position
                     }
 
         _ ->
@@ -357,28 +358,36 @@ findNewPositionMaybeBlocked colliders kinematicState =
 
 circlesCollide : KinematicState -> KinematicState -> Bool
 circlesCollide p1 p2 =
-    let
-        threshold =
-            (p1.circleRadius + p2.circleRadius) ^ 2
+    if p1.position == p2.position then
+        False
 
-        p1c =
-            Point2d.toPixels p1.position
+    else
+        let
+            threshold =
+                (p1.circleRadius + p2.circleRadius) ^ 2
 
-        p2c =
-            Point2d.toPixels p2.position
+            p1c =
+                Point2d.toPixels p1.position
 
-        distance =
-            abs <| ((p1c.x - p2c.x) ^ 2) + ((p1c.y - p2c.y) ^ 2)
-    in
-    distance <= threshold
+            p2c =
+                Point2d.toPixels p2.position
+
+            distance =
+                abs <| ((p1c.x - p2c.x) ^ 2) + ((p1c.y - p2c.y) ^ 2)
+        in
+        distance <= threshold
 
 
 findNewPosition : KinematicState -> KinematicState
 findNewPosition kinematicState =
-    { kinematicState
-        | position = Point2d.translateBy kinematicState.velocity kinematicState.position
-        , velocity = Vector2d.scaleBy frictionRate kinematicState.velocity
-    }
+    if kinematicState.static then
+        { kinematicState | velocity = Vector2d.xy (Pixels.pixels 0) (Pixels.pixels 0) }
+
+    else
+        { kinematicState
+            | position = Point2d.translateBy kinematicState.velocity kinematicState.position
+            , velocity = Vector2d.scaleBy frictionRate kinematicState.velocity
+        }
 
 
 updateVelocities : Maybe Direction -> Entities -> Entities
