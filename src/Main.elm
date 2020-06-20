@@ -22,6 +22,10 @@ frictionRate =
     0.96
 
 
+windowSize =
+    { width = 600, height = 600 }
+
+
 type TopLeftCoordinates
     = TopLeftCoordinates
 
@@ -146,10 +150,41 @@ defaultAvoiderSettings =
     }
 
 
+rangeStep : Float -> Float -> Float -> List Float
+rangeStep from to step =
+    List.map (\i -> toFloat i * step) <|
+        List.range 0 <|
+            floor (to / step)
+
+
 startingTrees =
+    List.map
+        (\( x, y ) ->
+            { entityType = Tree
+            , components =
+                [ BodyComponent (KinematicState (Point2d.pixels x y) (Vector2d.pixels 0 0) 15 True True) <| CircleStyling 15 "#caffbf" <| Just "/static/objects/tree.png"
+                ]
+            }
+        )
+    <|
+        List.map
+            (\x -> Tuple.pair x 0)
+            (rangeStep 0 windowSize.width 30)
+            ++ List.map
+                (\x -> Tuple.pair x windowSize.height)
+                (rangeStep 0 windowSize.width 30)
+            ++ List.map
+                (\y -> Tuple.pair windowSize.width y)
+                (rangeStep 0 windowSize.height 30)
+            ++ List.map
+                (\y -> Tuple.pair 0 y)
+                (rangeStep 0 windowSize.height 30)
+
+
+playfieldTrees =
     [ { entityType = Tree
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 140 70) (Vector2d.pixels 0 0) 37.5 True True) treeStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 400 130) (Vector2d.pixels 0 0) 37.5 True True) treeStyling
             ]
       }
     , { entityType = Tree
@@ -168,25 +203,25 @@ startingTrees =
 startingSheeps =
     [ { entityType = Sheep
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 200 100) (Vector2d.pixels 0 0) 17.5 True False) sheepStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 300 300) (Vector2d.pixels 0 0) 17.5 True False) sheepStyling
             , AvoidComponent defaultAvoiderSettings
             ]
       }
     , { entityType = Sheep
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 200 150) (Vector2d.pixels 0 0) 17.5 True False) sheepStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 260 350) (Vector2d.pixels 0 0) 17.5 True False) sheepStyling
             , AvoidComponent defaultAvoiderSettings
             ]
       }
     , { entityType = Sheep
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 250 60) (Vector2d.pixels 0 0) 17.5 True False) sheepStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 250 300) (Vector2d.pixels 0 0) 17.5 True False) sheepStyling
             , AvoidComponent defaultAvoiderSettings
             ]
       }
     , { entityType = Sheep
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 250 30) (Vector2d.pixels 0 0) 17.5 True Basics.False) sheepStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 250 375) (Vector2d.pixels 0 0) 17.5 True Basics.False) sheepStyling
             , AvoidComponent defaultAvoiderSettings
             ]
       }
@@ -214,8 +249,8 @@ target =
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( { tick = 0
-      , entities = startingSheeps ++ startingDog ++ target ++ startingTrees
-      , gameSettings = { size = ( 600, 600 ), color = "#bdb2ff" }
+      , entities = startingSheeps ++ startingDog ++ target ++ startingTrees ++ playfieldTrees
+      , gameSettings = { size = ( windowSize.width, windowSize.height ), color = "#bdb2ff" }
       , lastTick = Time.millisToPosix 0
       , currentDirection = Maybe.Nothing
       }
