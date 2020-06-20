@@ -342,12 +342,12 @@ findNewPositionMaybeBlocked blockcircles kinematicState =
             List.filter (\b -> circlesCollide newPosition.position <| b) blockcircles
     in
     case List.head blockers of
-        Just blocker ->
+        Just _ ->
             findNewPosition <|
                 findNewPosition
                     { kinematicState
                         | velocity =
-                            Vector2d.perpendicularTo <| Vector2d.scaleBy 2 <| Vector2d.reverse <| kinematicState.velocity
+                            Vector2d.reverse <| kinematicState.velocity
                     }
 
         _ ->
@@ -359,9 +359,18 @@ circlesCollide p1 p2 =
     let
         threshold =
             -- TODO: maybe also add radius of collider
-            Circle2d.radius p2
+            Pixels.inPixels <| Circle2d.radius p2
+
+        p1c =
+            Point2d.toPixels p1
+
+        p2c =
+            Point2d.toPixels (Circle2d.centerPoint p2)
+
+        distance =
+            abs <| ((p1c.x - p2c.x) * (p1c.x - p2c.x) + (p1c.y - p2c.y) * (p1c.y - p2c.y))
     in
-    Quantity.lessThan threshold (Point2d.distanceFrom p1 (Circle2d.centerPoint p2))
+    distance <= (threshold * threshold)
 
 
 findNewPosition : KinematicState -> KinematicState
