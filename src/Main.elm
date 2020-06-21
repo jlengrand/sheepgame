@@ -58,7 +58,7 @@ type Component
     | AreaComponent Int Int Int Int AreaStyling
     | BodyComponent KinematicState CircleStyling
     | AvoidComponent AvoiderSettings
-    | AvoideeComponent
+    | AvoideeComponent String
 
 
 type alias KinematicState =
@@ -66,7 +66,7 @@ type alias KinematicState =
     , velocity : Vector2d Pixels TopLeftCoordinates
     , circleRadius : Float
     , collides : Bool
-    , static : Bool
+    , max_v : Quantity.Quantity Float Pixels
     }
 
 
@@ -79,6 +79,7 @@ type alias KinematicStateAndBlockRadius =
 type alias AvoiderSettings =
     { strength : Float
     , avoid_radius : Float
+    , avoidee_id : String
     }
 
 
@@ -144,9 +145,17 @@ type alias Flock =
     List Sheep
 
 
-defaultAvoiderSettings =
-    { strength = 100
-    , avoid_radius = 200
+dogAvoiderSettings =
+    { strength = 1000
+    , avoid_radius = 150
+    , avoidee_id = "dog"
+    }
+
+
+treeAvoiderSettings =
+    { strength = 50
+    , avoid_radius = 11.5
+    , avoidee_id = "tree"
     }
 
 
@@ -162,7 +171,7 @@ startingTrees =
         (\( x, y ) ->
             { entityType = Tree
             , components =
-                [ BodyComponent (KinematicState (Point2d.pixels x y) (Vector2d.pixels 0 0) 15 True True) <| CircleStyling 15 "#caffbf" <| Just "/static/objects/tree.png"
+                [ BodyComponent (KinematicState (Point2d.pixels x y) (Vector2d.pixels 0 0) 15 True (Pixels.pixels 0)) <| CircleStyling 15 "#caffbf" <| Just "/static/objects/tree.png"
                 ]
             }
         )
@@ -184,17 +193,20 @@ startingTrees =
 playfieldTrees =
     [ { entityType = Tree
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 400 130) (Vector2d.pixels 0 0) 37.5 True True) treeStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 400 130) (Vector2d.pixels 0 0) 37.5 True (Pixels.pixels 0)) treeStyling
+            , AvoideeComponent "tree"
             ]
       }
     , { entityType = Tree
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 380 480) (Vector2d.pixels 0 0) 37.5 True True) treeStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 380 480) (Vector2d.pixels 0 0) 37.5 True (Pixels.pixels 0)) treeStyling
+            , AvoideeComponent "tree"
             ]
       }
     , { entityType = Tree
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 200 320) (Vector2d.pixels 0 0) 37.5 True True) treeStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 200 320) (Vector2d.pixels 0 0) 37.5 True (Pixels.pixels 0)) treeStyling
+            , AvoideeComponent "tree"
             ]
       }
     ]
@@ -203,26 +215,30 @@ playfieldTrees =
 startingSheeps =
     [ { entityType = Sheep
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 300 300) (Vector2d.pixels 0 0) 17.5 True False) sheepStyling
-            , AvoidComponent defaultAvoiderSettings
+            [ BodyComponent (KinematicState (Point2d.pixels 300 300) (Vector2d.pixels 0 0) 17.5 True (Pixels.pixels 1.2)) sheepStyling
+            , AvoidComponent dogAvoiderSettings
+            , AvoidComponent treeAvoiderSettings
             ]
       }
     , { entityType = Sheep
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 260 350) (Vector2d.pixels 0 0) 17.5 True False) sheepStyling
-            , AvoidComponent defaultAvoiderSettings
+            [ BodyComponent (KinematicState (Point2d.pixels 260 350) (Vector2d.pixels 0 0) 17.5 True (Pixels.pixels 1.2)) sheepStyling
+            , AvoidComponent dogAvoiderSettings
+            , AvoidComponent treeAvoiderSettings
             ]
       }
     , { entityType = Sheep
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 250 300) (Vector2d.pixels 0 0) 17.5 True False) sheepStyling
-            , AvoidComponent defaultAvoiderSettings
+            [ BodyComponent (KinematicState (Point2d.pixels 250 300) (Vector2d.pixels 0 0) 17.5 True (Pixels.pixels 1.2)) sheepStyling
+            , AvoidComponent dogAvoiderSettings
+            , AvoidComponent treeAvoiderSettings
             ]
       }
     , { entityType = Sheep
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 250 375) (Vector2d.pixels 0 0) 17.5 True Basics.False) sheepStyling
-            , AvoidComponent defaultAvoiderSettings
+            [ BodyComponent (KinematicState (Point2d.pixels 250 375) (Vector2d.pixels 0 0) 17.5 True (Pixels.pixels 1.2)) sheepStyling
+            , AvoidComponent dogAvoiderSettings
+            , AvoidComponent treeAvoiderSettings
             ]
       }
     ]
@@ -231,9 +247,9 @@ startingSheeps =
 startingDog =
     [ { entityType = Dog
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 50 50) (Vector2d.pixels 0 0) 17.5 False False) dogStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 50 50) (Vector2d.pixels 0 0) 17.5 False (Pixels.pixels 75)) dogStyling
             , KeyboardComponent
-            , AvoideeComponent
+            , AvoideeComponent "dog"
             ]
       }
     ]
@@ -415,14 +431,20 @@ circlesCollide p1 p2 =
 
 findNewPosition : KinematicState -> KinematicState
 findNewPosition kinematicState =
-    if kinematicState.static then
-        { kinematicState | velocity = Vector2d.xy (Pixels.pixels 0) (Pixels.pixels 0) }
+    let
+        scaled_velocity =
+            if Quantity.greaterThan kinematicState.max_v (Vector2d.length kinematicState.velocity) then
+                Maybe.withDefault Vector2d.zero <|
+                    Maybe.map (Vector2d.withLength kinematicState.max_v) <|
+                        Vector2d.direction kinematicState.velocity
 
-    else
-        { kinematicState
-            | position = Point2d.translateBy kinematicState.velocity kinematicState.position
-            , velocity = Vector2d.scaleBy frictionRate kinematicState.velocity
-        }
+            else
+                kinematicState.velocity
+    in
+    { kinematicState
+        | position = Point2d.translateBy scaled_velocity kinematicState.position
+        , velocity = Vector2d.scaleBy frictionRate scaled_velocity
+    }
 
 
 updateVelocities : Maybe Direction -> Entities -> Entities
@@ -434,10 +456,13 @@ updateVelocities maybeDirection entities =
 
             else if hasAvoidComponent e then
                 let
+                    avoiders =
+                        getAvoiders e
+
                     avoideeLocations =
-                        getAvoideesLocation entities
+                        List.map2 Tuple.pair avoiders (List.map (getAvoideesLocation entities) avoiders)
                 in
-                { e | components = avoid e.components avoideeLocations }
+                { e | components = List.foldl avoid e.components avoideeLocations }
 
             else
                 e
@@ -445,8 +470,8 @@ updateVelocities maybeDirection entities =
         entities
 
 
-avoid : List Component -> List KinematicState -> List Component
-avoid avoider avoidees =
+avoid : ( AvoiderSettings, List KinematicState ) -> List Component -> List Component
+avoid ( settings, avoidees ) avoider =
     let
         avoiderPostion =
             List.filterMap getKinematicState avoider
@@ -460,39 +485,34 @@ avoid avoider avoidees =
             avoider
 
         Just avoiderKs ->
-            case List.head avoiderAvoiderSettings of
-                Just avoiderAs ->
-                    let
-                        desired =
-                            avoidees
-                                |> List.map
-                                    (\avoidee ->
-                                        let
-                                            distance =
-                                                Vector2d.from avoiderKs.position avoidee.position
+            let
+                desired =
+                    avoidees
+                        |> List.map
+                            (\avoidee ->
+                                let
+                                    distance =
+                                        Vector2d.from avoiderKs.position avoidee.position
 
-                                            distancevalue =
-                                                Pixels.inPixels (Vector2d.length distance)
+                                    distancevalue =
+                                        Pixels.inPixels (Vector2d.length distance)
 
-                                            scaled =
-                                                if distancevalue > avoiderAs.avoid_radius then
-                                                    0
+                                    scaled =
+                                        if distancevalue > settings.avoid_radius then
+                                            0
 
-                                                else
-                                                    avoiderAs.strength / distancevalue
-                                        in
-                                        distance
-                                            |> Vector2d.direction
-                                            |> Maybe.map (Vector2d.withLength (Pixels.pixels scaled))
-                                            |> Maybe.withDefault (Vector2d.pixels 0 0)
-                                            |> Vector2d.reverse
-                                    )
-                                |> Vector2d.sum
-                    in
-                    applyForce avoider desired
-
-                Nothing ->
-                    avoider
+                                        else
+                                            settings.strength / distancevalue
+                                in
+                                distance
+                                    |> Vector2d.direction
+                                    |> Maybe.map (Vector2d.withLength (Pixels.pixels scaled))
+                                    |> Maybe.withDefault (Vector2d.pixels 0 0)
+                                    |> Vector2d.reverse
+                            )
+                        |> Vector2d.sum
+            in
+            applyForce avoider desired
 
 
 applyForce : List Component -> Vector2d Pixels TopLeftCoordinates -> List Component
@@ -503,7 +523,7 @@ applyForce components force =
                 case c of
                     BodyComponent ks styling ->
                         BodyComponent
-                            { ks | velocity = Vector2d.scaleBy 0.35 (Vector2d.plus ks.velocity force) }
+                            { ks | velocity = Vector2d.plus ks.velocity force }
                             styling
 
                     _ ->
@@ -516,11 +536,11 @@ desiredAvoid myPosition avoideePostion =
     Vector2d.from myPosition avoideePostion.position
 
 
-getAvoideesLocation : Entities -> List KinematicState
-getAvoideesLocation entities =
+getAvoideesLocation : Entities -> AvoiderSettings -> List KinematicState
+getAvoideesLocation entities avoider =
     let
         avoidees =
-            List.filter hasAvoideeComponent entities
+            List.filter (hasAvoideeString avoider.avoidee_id) <| List.filter hasAvoideeComponent entities
     in
     avoidees
         |> List.concatMap
@@ -528,6 +548,20 @@ getAvoideesLocation entities =
                 entity.components
                     |> List.filterMap
                         getKinematicState
+            )
+
+
+getAvoiders : Entity -> List AvoiderSettings
+getAvoiders e =
+    e.components
+        |> List.filterMap
+            (\c ->
+                case c of
+                    AvoidComponent avoider ->
+                        Just avoider
+
+                    _ ->
+                        Nothing
             )
 
 
@@ -584,8 +618,22 @@ hasAvoideeComponent entity =
     List.any
         (\c ->
             case c of
-                AvoideeComponent ->
+                AvoideeComponent _ ->
                     True
+
+                _ ->
+                    False
+        )
+        entity.components
+
+
+hasAvoideeString : String -> Entity -> Bool
+hasAvoideeString id entity =
+    List.any
+        (\c ->
+            case c of
+                AvoideeComponent id_ ->
+                    id == id_
 
                 _ ->
                     False
