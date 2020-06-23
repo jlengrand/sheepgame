@@ -22,6 +22,10 @@ frictionRate =
     0.96
 
 
+windowSize =
+    { width = 600, height = 600 }
+
+
 type TopLeftCoordinates
     = TopLeftCoordinates
 
@@ -52,19 +56,17 @@ type alias GameSettings =
 type Component
     = KeyboardComponent
     | AreaComponent Int Int Int Int AreaStyling
-    | LocationComponent KinematicState CircleStyling
+    | BodyComponent KinematicState CircleStyling
     | AvoidComponent AvoiderSettings
     | AvoideeComponent
-    | BlockComponent BlockCircle CircleStyling
-
-
-type alias BlockCircle =
-    Circle2d Pixels TopLeftCoordinates
 
 
 type alias KinematicState =
     { position : Point2d Pixels TopLeftCoordinates
     , velocity : Vector2d Pixels TopLeftCoordinates
+    , circleRadius : Float
+    , collides : Bool
+    , static : Bool
     }
 
 
@@ -91,22 +93,22 @@ type alias AreaStyling =
 
 
 type alias CircleStyling =
-    { radius : Int
+    { radius : Float
     , color : String
     , imagePath : Maybe String
     }
 
 
 treeStyling =
-    CircleStyling 64 "#caffbf" <| Just "/static/objects/tree.png"
+    CircleStyling 37.5 "#caffbf" <| Just "/static/objects/tree.png"
 
 
 sheepStyling =
-    CircleStyling 35 "#9bf6ff" <| Just "/static/animals/goat.png"
+    CircleStyling 17.5 "#9bf6ff" <| Just "/static/animals/goat.png"
 
 
 dogStyling =
-    CircleStyling 35 "#ffc6ff" <| Just "/static/animals/dog.png"
+    CircleStyling 17.5 "#ffc6ff" <| Just "/static/animals/dog.png"
 
 
 areaStyling =
@@ -148,20 +150,51 @@ defaultAvoiderSettings =
     }
 
 
+rangeStep : Float -> Float -> Float -> List Float
+rangeStep from to step =
+    List.map (\i -> toFloat i * step) <|
+        List.range 0 <|
+            floor (to / step)
+
+
 startingTrees =
+    List.map
+        (\( x, y ) ->
+            { entityType = Tree
+            , components =
+                [ BodyComponent (KinematicState (Point2d.pixels x y) (Vector2d.pixels 0 0) 15 True True) <| CircleStyling 15 "#caffbf" <| Just "/static/objects/tree.png"
+                ]
+            }
+        )
+    <|
+        List.map
+            (\x -> Tuple.pair x 0)
+            (rangeStep 0 windowSize.width 30)
+            ++ List.map
+                (\x -> Tuple.pair x windowSize.height)
+                (rangeStep 0 windowSize.width 30)
+            ++ List.map
+                (\y -> Tuple.pair windowSize.width y)
+                (rangeStep 0 windowSize.height 30)
+            ++ List.map
+                (\y -> Tuple.pair 0 y)
+                (rangeStep 0 windowSize.height 30)
+
+
+playfieldTrees =
     [ { entityType = Tree
       , components =
-            [ BlockComponent (Circle2d.atPoint (Point2d.pixels 140 70) (Pixels.pixels 32)) treeStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 400 130) (Vector2d.pixels 0 0) 37.5 True True) treeStyling
             ]
       }
     , { entityType = Tree
       , components =
-            [ BlockComponent (Circle2d.atPoint (Point2d.pixels 380 480) (Pixels.pixels 32)) treeStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 380 480) (Vector2d.pixels 0 0) 37.5 True True) treeStyling
             ]
       }
     , { entityType = Tree
       , components =
-            [ BlockComponent (Circle2d.atPoint (Point2d.pixels 200 320) (Pixels.pixels 32)) treeStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 200 320) (Vector2d.pixels 0 0) 37.5 True True) treeStyling
             ]
       }
     ]
@@ -170,25 +203,25 @@ startingTrees =
 startingSheeps =
     [ { entityType = Sheep
       , components =
-            [ LocationComponent (KinematicState (Point2d.pixels 200 100) (Vector2d.pixels 0 0)) sheepStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 300 300) (Vector2d.pixels 0 0) 17.5 True False) sheepStyling
             , AvoidComponent defaultAvoiderSettings
             ]
       }
     , { entityType = Sheep
       , components =
-            [ LocationComponent (KinematicState (Point2d.pixels 200 150) (Vector2d.pixels 0 0)) sheepStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 260 350) (Vector2d.pixels 0 0) 17.5 True False) sheepStyling
             , AvoidComponent defaultAvoiderSettings
             ]
       }
     , { entityType = Sheep
       , components =
-            [ LocationComponent (KinematicState (Point2d.pixels 250 60) (Vector2d.pixels 0 0)) sheepStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 250 300) (Vector2d.pixels 0 0) 17.5 True False) sheepStyling
             , AvoidComponent defaultAvoiderSettings
             ]
       }
     , { entityType = Sheep
       , components =
-            [ LocationComponent (KinematicState (Point2d.pixels 250 30) (Vector2d.pixels 0 0)) sheepStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 250 375) (Vector2d.pixels 0 0) 17.5 True Basics.False) sheepStyling
             , AvoidComponent defaultAvoiderSettings
             ]
       }
@@ -198,7 +231,7 @@ startingSheeps =
 startingDog =
     [ { entityType = Dog
       , components =
-            [ LocationComponent (KinematicState (Point2d.pixels 50 50) (Vector2d.pixels 0 0)) dogStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 50 50) (Vector2d.pixels 0 0) 17.5 False False) dogStyling
             , KeyboardComponent
             , AvoideeComponent
             ]
@@ -216,8 +249,8 @@ target =
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( { tick = 0
-      , entities = startingSheeps ++ startingDog ++ target ++ startingTrees
-      , gameSettings = { size = ( 600, 600 ), color = "#bdb2ff" }
+      , entities = startingSheeps ++ startingDog ++ target ++ startingTrees ++ playfieldTrees
+      , gameSettings = { size = ( windowSize.width, windowSize.height ), color = "#bdb2ff" }
       , lastTick = Time.millisToPosix 0
       , currentDirection = Maybe.Nothing
       }
@@ -290,27 +323,31 @@ update msg model =
 updatePositions : Entities -> Entities
 updatePositions entities =
     let
-        blockCircles =
-            findBlockCircles entities
+        colliders =
+            findColliders entities
     in
     List.map
         (\e ->
-            { e | components = updatePositionOfLocationComponent blockCircles e.components }
+            { e | components = updatePositionOfBodyComponent colliders e.components }
         )
         entities
 
 
-findBlockCircles : Entities -> List BlockCircle
-findBlockCircles entities =
-    List.filter hasBlockComponent entities
+
+-- findStaticEntities
+
+
+findColliders : Entities -> List KinematicState
+findColliders entities =
+    List.filter isAColider entities
         |> List.concatMap
             (\entity ->
                 entity.components
                     |> List.filterMap
                         (\c ->
                             case c of
-                                BlockComponent circle _ ->
-                                    Just circle
+                                BodyComponent ks _ ->
+                                    Just ks
 
                                 _ ->
                                     Nothing
@@ -318,13 +355,13 @@ findBlockCircles entities =
             )
 
 
-updatePositionOfLocationComponent : List BlockCircle -> List Component -> List Component
-updatePositionOfLocationComponent blockCircles components =
+updatePositionOfBodyComponent : List KinematicState -> List Component -> List Component
+updatePositionOfBodyComponent colliders components =
     List.map
         (\c ->
             case c of
-                LocationComponent location styling ->
-                    LocationComponent (findNewPositionMaybeBlocked blockCircles location) styling
+                BodyComponent location styling ->
+                    BodyComponent (findNewPositionMaybeBlocked colliders location) styling
 
                 _ ->
                     c
@@ -332,53 +369,60 @@ updatePositionOfLocationComponent blockCircles components =
         components
 
 
-findNewPositionMaybeBlocked : List BlockCircle -> KinematicState -> KinematicState
-findNewPositionMaybeBlocked blockcircles kinematicState =
+findNewPositionMaybeBlocked : List KinematicState -> KinematicState -> KinematicState
+findNewPositionMaybeBlocked colliders kinematicState =
     let
         newPosition =
             findNewPosition kinematicState
 
         blockers =
-            List.filter (\b -> circlesCollide newPosition.position <| b) blockcircles
+            List.filter (\b -> circlesCollide kinematicState b) colliders
     in
     case List.head blockers of
-        Just _ ->
+        Just blocker ->
             findNewPosition <|
                 findNewPosition
                     { kinematicState
                         | velocity =
-                            Vector2d.reverse <| kinematicState.velocity
+                            Vector2d.withLength (Pixels.pixels 1.3) <| Maybe.withDefault Direction2d.x <| Vector2d.direction <| Vector2d.from blocker.position kinematicState.position
                     }
 
         _ ->
             newPosition
 
 
-circlesCollide : Point2d Pixels TopLeftCoordinates -> Circle2d Pixels TopLeftCoordinates -> Bool
+circlesCollide : KinematicState -> KinematicState -> Bool
 circlesCollide p1 p2 =
-    let
-        threshold =
-            -- TODO: maybe also add radius of collider
-            Pixels.inPixels <| Circle2d.radius p2
+    if p1.position == p2.position then
+        False
 
-        p1c =
-            Point2d.toPixels p1
+    else
+        let
+            threshold =
+                (p1.circleRadius + p2.circleRadius) ^ 2
 
-        p2c =
-            Point2d.toPixels (Circle2d.centerPoint p2)
+            p1c =
+                Point2d.toPixels p1.position
 
-        distance =
-            abs <| ((p1c.x - p2c.x) * (p1c.x - p2c.x) + (p1c.y - p2c.y) * (p1c.y - p2c.y))
-    in
-    distance <= (threshold * threshold)
+            p2c =
+                Point2d.toPixels p2.position
+
+            distance =
+                abs <| ((p1c.x - p2c.x) ^ 2) + ((p1c.y - p2c.y) ^ 2)
+        in
+        distance <= threshold
 
 
 findNewPosition : KinematicState -> KinematicState
 findNewPosition kinematicState =
-    { kinematicState
-        | position = Point2d.translateBy kinematicState.velocity kinematicState.position
-        , velocity = Vector2d.scaleBy frictionRate kinematicState.velocity
-    }
+    if kinematicState.static then
+        { kinematicState | velocity = Vector2d.xy (Pixels.pixels 0) (Pixels.pixels 0) }
+
+    else
+        { kinematicState
+            | position = Point2d.translateBy kinematicState.velocity kinematicState.position
+            , velocity = Vector2d.scaleBy frictionRate kinematicState.velocity
+        }
 
 
 updateVelocities : Maybe Direction -> Entities -> Entities
@@ -457,11 +501,9 @@ applyForce components force =
         |> List.map
             (\c ->
                 case c of
-                    LocationComponent ks styling ->
-                        LocationComponent
-                            { position = ks.position
-                            , velocity = Vector2d.scaleBy 0.35 (Vector2d.plus ks.velocity force)
-                            }
+                    BodyComponent ks styling ->
+                        BodyComponent
+                            { ks | velocity = Vector2d.scaleBy 0.35 (Vector2d.plus ks.velocity force) }
                             styling
 
                     _ ->
@@ -492,7 +534,7 @@ getAvoideesLocation entities =
 getKinematicState : Component -> Maybe KinematicState
 getKinematicState c =
     case c of
-        LocationComponent k _ ->
+        BodyComponent k _ ->
             Just k
 
         _ ->
@@ -509,13 +551,13 @@ getAvoiderSettings c =
             Nothing
 
 
-hasBlockComponent : Entity -> Bool
-hasBlockComponent entity =
+isAColider : Entity -> Bool
+isAColider entity =
     List.any
         (\c ->
             case c of
-                BlockComponent _ _ ->
-                    True
+                BodyComponent ks _ ->
+                    ks.collides
 
                 _ ->
                     False
@@ -572,8 +614,8 @@ updateVelocityOfDogs components mdirection =
             List.map
                 (\c ->
                     case c of
-                        LocationComponent kinematicState styling ->
-                            LocationComponent (findNewVelocityOfDog direction kinematicState) styling
+                        BodyComponent kinematicState styling ->
+                            BodyComponent (findNewVelocityOfDog direction kinematicState) styling
 
                         _ ->
                             c
@@ -687,14 +729,11 @@ zOrder : Component -> Int
 zOrder component =
     -- I guess we have to add all 'renderables' here
     case component of
-        LocationComponent _ _ ->
+        BodyComponent _ _ ->
             0
 
         AreaComponent _ _ _ _ _ ->
             -1
-
-        BlockComponent _ _ ->
-            1
 
         _ ->
             999
@@ -704,10 +743,10 @@ createRotationString : KinematicState -> CircleStyling -> String
 createRotationString kstate styling =
     let
         x =
-            (Point2d.toPixels kstate.position).x + (toFloat styling.radius / 2)
+            (Point2d.toPixels kstate.position).x
 
         y =
-            (Point2d.toPixels kstate.position).y + (toFloat styling.radius / 2)
+            (Point2d.toPixels kstate.position).y
 
         direction =
             Vector2d.direction kstate.velocity
@@ -730,26 +769,37 @@ createRotationString kstate styling =
 render : Component -> Maybe (Svg Msg)
 render zeComponent =
     case zeComponent of
-        LocationComponent location styling ->
+        BodyComponent location styling ->
             case styling.imagePath of
                 Just path ->
                     Just <|
+                        -- Svg.g [] [
                         Svg.image
-                            [ x <| String.fromFloat (Point2d.toPixels location.position).x
-                            , y <| String.fromFloat (Point2d.toPixels location.position).y
-                            , width <| String.fromInt styling.radius
-                            , height <| String.fromInt styling.radius
+                            [ x <| String.fromFloat <| (Point2d.toPixels location.position).x - styling.radius
+                            , y <| String.fromFloat <| (Point2d.toPixels location.position).y - styling.radius
+                            , width <| String.fromFloat (styling.radius * 2)
+                            , height <| String.fromFloat (styling.radius * 2)
                             , xlinkHref path
                             , transform <| createRotationString location styling
                             ]
                             []
 
+                --         Svg.circle
+                --             [ cx <| String.fromFloat (Point2d.toPixels location.position).x
+                --             , cy <| String.fromFloat (Point2d.toPixels location.position).y
+                --             , r <| String.fromFloat location.circleRadius
+                --             , Svg.Attributes.stroke styling.color
+                --             , Svg.Attributes.strokeWidth "2"
+                --             , Svg.Attributes.fill "none"
+                --             ]
+                --             []
+                -- -- ]
                 _ ->
                     Just <|
                         Svg.circle
                             [ cx <| String.fromFloat (Point2d.toPixels location.position).x
                             , cy <| String.fromFloat (Point2d.toPixels location.position).y
-                            , r <| String.fromInt styling.radius
+                            , r <| String.fromFloat styling.radius
                             , Svg.Attributes.fill styling.color
                             ]
                             []
@@ -776,29 +826,6 @@ render zeComponent =
                     ]
                     []
 
-        BlockComponent circle styling ->
-            case styling.imagePath of
-                Just path ->
-                    Just <|
-                        Svg.image
-                            [ x <| String.fromFloat <| (Point2d.toPixels <| Circle2d.centerPoint circle).x
-                            , y <| String.fromFloat <| (Point2d.toPixels <| Circle2d.centerPoint circle).y
-                            , width <| String.fromInt styling.radius
-                            , height <| String.fromInt styling.radius
-                            , xlinkHref path
-                            ]
-                            []
-
-                _ ->
-                    Just <|
-                        Svg.circle
-                            [ cx <| String.fromFloat <| (Point2d.toPixels <| Circle2d.centerPoint circle).x
-                            , cy <| String.fromFloat <| (Point2d.toPixels <| Circle2d.centerPoint circle).y
-                            , r <| String.fromFloat <| Pixels.inPixels <| Circle2d.radius circle
-                            , Svg.Attributes.fill styling.color
-                            ]
-                            []
-
         _ ->
             Nothing
 
@@ -806,13 +833,10 @@ render zeComponent =
 isRenderable : Component -> Bool
 isRenderable component =
     case component of
-        LocationComponent _ _ ->
+        BodyComponent _ _ ->
             True
 
         AreaComponent _ _ _ _ _ ->
-            True
-
-        BlockComponent _ _ ->
             True
 
         _ ->
