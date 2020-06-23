@@ -151,7 +151,7 @@ defaultAvoiderSettings =
 
 
 rangeStep : Float -> Float -> Float -> List Float
-rangeStep from to step =
+rangeStep f to step =
     List.map (\i -> toFloat i * step) <|
         List.range 0 <|
             floor (to / step)
@@ -333,15 +333,73 @@ updateScore : Entities -> Entities
 updateScore entities =
     let
         sheeps =
-            []
+            List.filter
+                (\e ->
+                    case e.entityType of
+                        Sheep ->
+                            True
 
-        wolves =
-            []
+                        _ ->
+                            False
+                )
+                entities
 
-        areas =
-            []
+        dogs =
+            List.filter
+                (\e ->
+                    case e.entityType of
+                        Dog ->
+                            True
+
+                        _ ->
+                            False
+                )
+                entities
+
+        theTarget =
+            List.filter
+                (\e ->
+                    case e.entityType of
+                        Target ->
+                            True
+
+                        _ ->
+                            False
+                )
+                entities
+                |> List.head
+
+        sheepsInTarget =
+            4
+
+        dogsInTarget =
+            2
+
+        score =
+            case theTarget of
+                Just t ->
+                    sheepsInTarget - dogsInTarget
+
+                Maybe.Nothing ->
+                    0
     in
-    entities
+    List.map
+        (\e -> { e | components = updateScoreOfComponents score e.components })
+        entities
+
+
+updateScoreOfComponents : Int -> List Component -> List Component
+updateScoreOfComponents score components =
+    List.map
+        (\c ->
+            case c of
+                ScoreComponent _ ->
+                    ScoreComponent score
+
+                _ ->
+                    c
+        )
+        components
 
 
 updatePositions : Entities -> Entities
@@ -355,10 +413,6 @@ updatePositions entities =
             { e | components = updatePositionOfBodyComponent colliders e.components }
         )
         entities
-
-
-
--- findStaticEntities
 
 
 findColliders : Entities -> List KinematicState
