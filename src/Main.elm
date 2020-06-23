@@ -3,7 +3,6 @@ module Main exposing (..)
 import Angle
 import Browser exposing (Document)
 import Browser.Events exposing (onAnimationFrame, onKeyDown)
-import Circle2d exposing (Circle2d)
 import Direction2d
 import Element exposing (Element, Orientation(..), centerX, fill)
 import Element.Font as Font
@@ -11,7 +10,6 @@ import Html exposing (Html)
 import Json.Decode
 import Pixels exposing (Pixels)
 import Point2d exposing (Point2d)
-import Quantity
 import Svg exposing (Svg)
 import Svg.Attributes exposing (cx, cy, height, r, rx, ry, transform, width, x, xlinkHref, y)
 import Time exposing (Posix)
