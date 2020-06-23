@@ -3,6 +3,7 @@ module Main exposing (..)
 import Angle
 import Browser exposing (Document)
 import Browser.Events exposing (onAnimationFrame, onKeyDown)
+import Circle2d exposing (Circle2d)
 import Direction2d
 import Element exposing (Element, Orientation(..), centerX, fill)
 import Element.Font as Font
@@ -15,6 +16,10 @@ import Svg exposing (Svg)
 import Svg.Attributes exposing (cx, cy, height, r, rx, ry, transform, width, x, xlinkHref, y)
 import Time exposing (Posix)
 import Vector2d exposing (Vector2d)
+
+
+frictionRate =
+    0.96
 
 
 type TopLeftCoordinates
@@ -47,16 +52,25 @@ type alias GameSettings =
 type Component
     = KeyboardComponent
     | AreaComponent Int Int Int Int AreaStyling
-    | ScoreComponent
     | LocationComponent KinematicState CircleStyling
-    | RenderComponent (List Component -> Svg.Svg Msg)
     | AvoidComponent AvoiderSettings
     | AvoideeComponent
+    | BlockComponent BlockCircle CircleStyling
+
+
+type alias BlockCircle =
+    Circle2d Pixels TopLeftCoordinates
 
 
 type alias KinematicState =
     { position : Point2d Pixels TopLeftCoordinates
     , velocity : Vector2d Pixels TopLeftCoordinates
+    }
+
+
+type alias KinematicStateAndBlockRadius =
+    { kinematicState : KinematicState
+    , blockRadius : Int
     }
 
 
@@ -83,6 +97,10 @@ type alias CircleStyling =
     }
 
 
+treeStyling =
+    CircleStyling 64 "#caffbf" <| Just "/static/objects/tree.png"
+
+
 sheepStyling =
     CircleStyling 35 "#9bf6ff" <| Just "/static/animals/goat.png"
 
@@ -99,6 +117,7 @@ type EntityType
     = Sheep
     | Dog
     | Target
+    | Tree
 
 
 type alias Entity =
@@ -127,6 +146,25 @@ defaultAvoiderSettings =
     { strength = 100
     , avoid_radius = 200
     }
+
+
+startingTrees =
+    [ { entityType = Tree
+      , components =
+            [ BlockComponent (Circle2d.atPoint (Point2d.pixels 140 70) (Pixels.pixels 32)) treeStyling
+            ]
+      }
+    , { entityType = Tree
+      , components =
+            [ BlockComponent (Circle2d.atPoint (Point2d.pixels 380 480) (Pixels.pixels 32)) treeStyling
+            ]
+      }
+    , { entityType = Tree
+      , components =
+            [ BlockComponent (Circle2d.atPoint (Point2d.pixels 200 320) (Pixels.pixels 32)) treeStyling
+            ]
+      }
+    ]
 
 
 startingSheeps =
@@ -159,7 +197,11 @@ startingSheeps =
 
 startingDog =
     [ { entityType = Dog
-      , components = [ LocationComponent (KinematicState (Point2d.pixels 50 50) (Vector2d.pixels 0 0)) dogStyling, KeyboardComponent, AvoideeComponent ]
+      , components =
+            [ LocationComponent (KinematicState (Point2d.pixels 50 50) (Vector2d.pixels 0 0)) dogStyling
+            , KeyboardComponent
+            , AvoideeComponent
+            ]
       }
     ]
 
@@ -174,7 +216,7 @@ target =
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( { tick = 0
-      , entities = startingSheeps ++ startingDog ++ target
+      , entities = startingSheeps ++ startingDog ++ target ++ startingTrees
       , gameSettings = { size = ( 600, 600 ), color = "#bdb2ff" }
       , lastTick = Time.millisToPosix 0
       , currentDirection = Maybe.Nothing
@@ -247,17 +289,100 @@ update msg model =
 
 updatePositions : Entities -> Entities
 updatePositions entities =
-    -- TODO : Here we just update the positions based on speed (and reduce speed most likely)
+    let
+        blockCircles =
+            findBlockCircles entities
+    in
     List.map
         (\e ->
-            { e | components = updatePositionOfLocationComponent e.components }
+            { e | components = updatePositionOfLocationComponent blockCircles e.components }
         )
         entities
 
 
+findBlockCircles : Entities -> List BlockCircle
+findBlockCircles entities =
+    List.filter hasBlockComponent entities
+        |> List.concatMap
+            (\entity ->
+                entity.components
+                    |> List.filterMap
+                        (\c ->
+                            case c of
+                                BlockComponent circle _ ->
+                                    Just circle
+
+                                _ ->
+                                    Nothing
+                        )
+            )
+
+
+updatePositionOfLocationComponent : List BlockCircle -> List Component -> List Component
+updatePositionOfLocationComponent blockCircles components =
+    List.map
+        (\c ->
+            case c of
+                LocationComponent location styling ->
+                    LocationComponent (findNewPositionMaybeBlocked blockCircles location) styling
+
+                _ ->
+                    c
+        )
+        components
+
+
+findNewPositionMaybeBlocked : List BlockCircle -> KinematicState -> KinematicState
+findNewPositionMaybeBlocked blockcircles kinematicState =
+    let
+        newPosition =
+            findNewPosition kinematicState
+
+        blockers =
+            List.filter (\b -> circlesCollide newPosition.position <| b) blockcircles
+    in
+    case List.head blockers of
+        Just _ ->
+            findNewPosition <|
+                findNewPosition
+                    { kinematicState
+                        | velocity =
+                            Vector2d.reverse <| kinematicState.velocity
+                    }
+
+        _ ->
+            newPosition
+
+
+circlesCollide : Point2d Pixels TopLeftCoordinates -> Circle2d Pixels TopLeftCoordinates -> Bool
+circlesCollide p1 p2 =
+    let
+        threshold =
+            -- TODO: maybe also add radius of collider
+            Pixels.inPixels <| Circle2d.radius p2
+
+        p1c =
+            Point2d.toPixels p1
+
+        p2c =
+            Point2d.toPixels (Circle2d.centerPoint p2)
+
+        distance =
+            abs <| ((p1c.x - p2c.x) * (p1c.x - p2c.x) + (p1c.y - p2c.y) * (p1c.y - p2c.y))
+    in
+    distance <= (threshold * threshold)
+
+
+findNewPosition : KinematicState -> KinematicState
+findNewPosition kinematicState =
+    { kinematicState
+        | position = Point2d.translateBy kinematicState.velocity kinematicState.position
+        , velocity = Vector2d.scaleBy frictionRate kinematicState.velocity
+    }
+
+
 updateVelocities : Maybe Direction -> Entities -> Entities
 updateVelocities maybeDirection entities =
-    -- TODO : here we handle the change of velocity of sheeps and dogs
     List.map
         (\e ->
             if hasKeyboardComponent e then
@@ -280,7 +405,7 @@ avoid : List Component -> List KinematicState -> List Component
 avoid avoider avoidees =
     let
         avoiderPostion =
-            List.filterMap getKinemeticState avoider
+            List.filterMap getKinematicState avoider
 
         avoiderAvoiderSettings =
             List.filterMap getAvoiderSettings avoider
@@ -360,12 +485,12 @@ getAvoideesLocation entities =
             (\entity ->
                 entity.components
                     |> List.filterMap
-                        getKinemeticState
+                        getKinematicState
             )
 
 
-getKinemeticState : Component -> Maybe KinematicState
-getKinemeticState c =
+getKinematicState : Component -> Maybe KinematicState
+getKinematicState c =
     case c of
         LocationComponent k _ ->
             Just k
@@ -382,6 +507,20 @@ getAvoiderSettings c =
 
         _ ->
             Nothing
+
+
+hasBlockComponent : Entity -> Bool
+hasBlockComponent entity =
+    List.any
+        (\c ->
+            case c of
+                BlockComponent _ _ ->
+                    True
+
+                _ ->
+                    False
+        )
+        entity.components
 
 
 hasAvoidComponent : Entity -> Bool
@@ -464,28 +603,6 @@ findNewVelocityOfDog direction kstate =
             kstate
 
 
-updatePositionOfLocationComponent : List Component -> List Component
-updatePositionOfLocationComponent components =
-    List.map
-        (\c ->
-            case c of
-                LocationComponent location styling ->
-                    LocationComponent (findNewPosition location) styling
-
-                _ ->
-                    c
-        )
-        components
-
-
-findNewPosition : KinematicState -> KinematicState
-findNewPosition kinematicState =
-    { kinematicState
-        | position = Point2d.translateBy kinematicState.velocity kinematicState.position
-        , velocity = Vector2d.scaleBy 0.96 kinematicState.velocity
-    }
-
-
 
 -- VIEW
 
@@ -551,7 +668,7 @@ gameView model =
                     (\entity ->
                         entity.components
                             |> List.filter
-                                (\c -> isLocationOrAreaComponent c)
+                                (\c -> isRenderable c)
                     )
     in
     Svg.svg
@@ -575,6 +692,9 @@ zOrder component =
 
         AreaComponent _ _ _ _ _ ->
             -1
+
+        BlockComponent _ _ ->
+            1
 
         _ ->
             999
@@ -656,17 +776,43 @@ render zeComponent =
                     ]
                     []
 
+        BlockComponent circle styling ->
+            case styling.imagePath of
+                Just path ->
+                    Just <|
+                        Svg.image
+                            [ x <| String.fromFloat <| (Point2d.toPixels <| Circle2d.centerPoint circle).x
+                            , y <| String.fromFloat <| (Point2d.toPixels <| Circle2d.centerPoint circle).y
+                            , width <| String.fromInt styling.radius
+                            , height <| String.fromInt styling.radius
+                            , xlinkHref path
+                            ]
+                            []
+
+                _ ->
+                    Just <|
+                        Svg.circle
+                            [ cx <| String.fromFloat <| (Point2d.toPixels <| Circle2d.centerPoint circle).x
+                            , cy <| String.fromFloat <| (Point2d.toPixels <| Circle2d.centerPoint circle).y
+                            , r <| String.fromFloat <| Pixels.inPixels <| Circle2d.radius circle
+                            , Svg.Attributes.fill styling.color
+                            ]
+                            []
+
         _ ->
             Nothing
 
 
-isLocationOrAreaComponent : Component -> Bool
-isLocationOrAreaComponent component =
+isRenderable : Component -> Bool
+isRenderable component =
     case component of
         LocationComponent _ _ ->
             True
 
         AreaComponent _ _ _ _ _ ->
+            True
+
+        BlockComponent _ _ ->
             True
 
         _ ->

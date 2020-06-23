@@ -4,6 +4,7 @@
   "description": "Elm Game Jam Swen and Julien's entry",
   "main": "index.js",
   "scripts": {
+    "start_no-debug":"elm-live src/Main.elm --open",
     "start":"elm-live src/Main.elm --open -- --debug",
     "build":"elm make src/Main.elm --output=build/index.html --debug; cp -r static build/",
     "test": "echo \"Error: no test specified\" && exit 1"
