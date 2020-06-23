@@ -363,7 +363,7 @@ updatePositions entities =
 
 findColliders : Entities -> List KinematicState
 findColliders entities =
-    List.filter isAColider entities
+    List.filter isACollider entities
         |> List.concatMap
             (\entity ->
                 entity.components
@@ -535,11 +535,6 @@ applyForce components force =
             )
 
 
-desiredAvoid : Point2d Pixels TopLeftCoordinates -> KinematicState -> Vector2d Pixels TopLeftCoordinates
-desiredAvoid myPosition avoideePostion =
-    Vector2d.from myPosition avoideePostion.position
-
-
 getAvoideesLocation : Entities -> List KinematicState
 getAvoideesLocation entities =
     let
@@ -575,8 +570,8 @@ getAvoiderSettings c =
             Nothing
 
 
-isAColider : Entity -> Bool
-isAColider entity =
+isACollider : Entity -> Bool
+isACollider entity =
     List.any
         (\c ->
             case c of
