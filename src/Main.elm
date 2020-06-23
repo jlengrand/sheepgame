@@ -1,6 +1,7 @@
 module Main exposing (..)
 
 import Angle
+import BoundingBox2d exposing (BoundingBox2d)
 import Browser exposing (Document)
 import Browser.Events exposing (onAnimationFrame, onKeyDown)
 import Direction2d
@@ -53,11 +54,15 @@ type alias GameSettings =
 
 type Component
     = KeyboardComponent
-    | AreaComponent Int Int Int Int AreaStyling
+    | AreaComponent BoundingBox AreaStyling
     | BodyComponent KinematicState CircleStyling
     | AvoidComponent AvoiderSettings
     | AvoideeComponent
     | ScoreComponent Int
+
+
+type alias BoundingBox =
+    BoundingBox2d Pixels TopLeftCoordinates
 
 
 type alias KinematicState =
@@ -250,7 +255,7 @@ startingScore =
 
 target =
     [ { entityType = Target
-      , components = [ AreaComponent 50 50 100 100 areaStyling ]
+      , components = [ AreaComponent (BoundingBox2d.from (Point2d.pixels 50 50) (Point2d.pixels 150 150)) areaStyling ]
       }
     ]
 
@@ -332,60 +337,62 @@ update msg model =
 updateScore : Entities -> Entities
 updateScore entities =
     let
-        sheeps =
-            List.filter
-                (\e ->
-                    case e.entityType of
-                        Sheep ->
-                            True
-
-                        _ ->
-                            False
-                )
-                entities
-
-        dogs =
-            List.filter
-                (\e ->
-                    case e.entityType of
-                        Dog ->
-                            True
-
-                        _ ->
-                            False
-                )
-                entities
-
-        theTarget =
-            List.filter
-                (\e ->
-                    case e.entityType of
-                        Target ->
-                            True
-
-                        _ ->
-                            False
-                )
-                entities
-                |> List.head
-
-        sheepsInTarget =
-            4
-
-        dogsInTarget =
-            2
-
+        --sheepsAndDogs =
+        --    List.filter
+        --        (\e ->
+        --            case e.entityType of
+        --                Dog ->
+        --                    True
+        --
+        --                Sheep ->
+        --                    True
+        --
+        --                _ ->
+        --                    False
+        --         )
+        --    entities
+        --
+        --theTarget =
+        --    List.filter
+        --        (\e ->
+        --            case e.entityType of
+        --                Target ->
+        --                    True
+        --
+        --                _ ->
+        --                    False
+        --        )
+        --        entities
+        --        |> List.head
+        --
+        --theTargetRectangle  =
+        --    case theTarget of
+        --        Just t ->
+        --            getAreaComponentOfEntity t
+        --        Maybe.Nothing ->
+        --            Maybe.Nothing
         score =
-            case theTarget of
-                Just t ->
-                    sheepsInTarget - dogsInTarget
-
-                Maybe.Nothing ->
-                    0
+            0
     in
     List.map
         (\e -> { e | components = updateScoreOfComponents score e.components })
         entities
+
+
+
+--getAreaComponentOfEntityAsBoundingBox : Entity -> Maybe BoundingBox2d
+--getAreaComponentOfEntityAsBoundingBox entity =
+--    List.filter
+--        (\c -> case c of
+--            AreaComponent _ _ _ _ _ ->
+--                True
+--            _ ->
+--                False
+--                )
+--        entity.components
+--    |> List.head
+--    |> Maybe.andThen
+--    |> BoundingBox2d.from
 
 
 updateScoreOfComponents : Int -> List Component -> List Component
@@ -805,7 +812,7 @@ zOrder component =
         BodyComponent _ _ ->
             0
 
-        AreaComponent _ _ _ _ _ ->
+        AreaComponent _ _ ->
             -1
 
         ScoreComponent _ ->
@@ -880,8 +887,14 @@ render gameSettings zeComponent =
                             ]
                             []
 
-        AreaComponent zeX zeY zeWidth zeHeight styling ->
+        AreaComponent boundingBox styling ->
             let
+                extrema =
+                    BoundingBox2d.extrema boundingBox
+
+                ( width, height ) =
+                    BoundingBox2d.dimensions boundingBox
+
                 fillStyling =
                     case styling.patternName of
                         Just id ->
@@ -892,10 +905,10 @@ render gameSettings zeComponent =
             in
             Just <|
                 Svg.rect
-                    [ x <| String.fromInt zeX
-                    , y <| String.fromInt zeY
-                    , Svg.Attributes.width <| String.fromInt zeWidth
-                    , Svg.Attributes.height <| String.fromInt zeHeight
+                    [ x <| String.fromFloat (Pixels.inPixels extrema.minX)
+                    , y <| String.fromFloat (Pixels.inPixels extrema.minY)
+                    , Svg.Attributes.width <| String.fromFloat (Pixels.inPixels width)
+                    , Svg.Attributes.height <| String.fromFloat (Pixels.inPixels height)
                     , fillStyling
                     , rx "0"
                     , ry "0"
@@ -921,7 +934,7 @@ isRenderable component =
         BodyComponent _ _ ->
             True
 
-        AreaComponent _ _ _ _ _ ->
+        AreaComponent _ _ ->
             True
 
         ScoreComponent _ ->
