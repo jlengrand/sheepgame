@@ -334,65 +334,104 @@ update msg model =
             )
 
 
+isDog : Entity -> Bool
+isDog entity =
+    case entity.entityType of
+        Dog ->
+            True
+
+        _ ->
+            False
+
+isSheep : Entity -> Bool
+isSheep entity =
+    case entity.entityType of
+        Sheep ->
+            True
+
+        _ ->
+            False
+
 updateScore : Entities -> Entities
 updateScore entities =
+    -- TODO : Do much better
     let
-        --sheepsAndDogs =
-        --    List.filter
-        --        (\e ->
-        --            case e.entityType of
-        --                Dog ->
-        --                    True
-        --
-        --                Sheep ->
-        --                    True
-        --
-        --                _ ->
-        --                    False
-        --         )
-        --    entities
-        --
-        --theTarget =
-        --    List.filter
-        --        (\e ->
-        --            case e.entityType of
-        --                Target ->
-        --                    True
-        --
-        --                _ ->
-        --                    False
-        --        )
-        --        entities
-        --        |> List.head
-        --
-        --theTargetRectangle  =
-        --    case theTarget of
-        --        Just t ->
-        --            getAreaComponentOfEntity t
-        --        Maybe.Nothing ->
-        --            Maybe.Nothing
+        dogsStates =
+            entities
+            |> List.filter
+                isDog
+            |> List.concatMap
+                (\entity ->
+                    entity.components
+                        |> List.filterMap
+                            getKinematicState
+                )
+
+        sheepsStates =
+            entities
+            |> List.filter
+                isSheep
+            |> List.concatMap
+                (\entity ->
+                    entity.components
+                        |> List.filterMap
+                            getKinematicState
+                )
+
+
+        theTarget =
+            List.filter
+                (\e ->
+                    case e.entityType of
+                        Target ->
+                            True
+
+                        _ ->
+                            False
+                )
+                entities
+                |> List.head
+
+        theTargetBoundingBox  =
+            case theTarget of
+                Just t ->
+                    getAreaComponentOfEntity t
+                Maybe.Nothing ->
+                    Maybe.Nothing
         score =
-            0
+            case theTargetBoundingBox of
+                Just bb ->
+                    ( getScore bb sheepsStates ) - (getScore bb dogsStates )
+                Maybe.Nothing ->
+                    0
     in
     List.map
         (\e -> { e | components = updateScoreOfComponents score e.components })
         entities
 
+getScore : BoundingBox -> List KinematicState -> Int
+getScore bbox kstates =
+    kstates
+    |> List.map
+        (\ks -> BoundingBox2d.contains ks.position bbox
+        )
+    |> List.filter
+        identity
+    |> List.length
 
 
---getAreaComponentOfEntityAsBoundingBox : Entity -> Maybe BoundingBox2d
---getAreaComponentOfEntityAsBoundingBox entity =
---    List.filter
---        (\c -> case c of
---            AreaComponent _ _ _ _ _ ->
---                True
---            _ ->
---                False
---                )
---        entity.components
---    |> List.head
---    |> Maybe.andThen
---    |> BoundingBox2d.from
+
+getAreaComponentOfEntity : Entity -> Maybe BoundingBox
+getAreaComponentOfEntity entity =
+    List.filterMap
+        (\c -> case c of
+            AreaComponent bb _ ->
+                Just bb
+            _ ->
+                Maybe.Nothing
+                )
+        entity.components
+    |> List.head
 
 
 updateScoreOfComponents : Int -> List Component -> List Component
