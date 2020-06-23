@@ -57,6 +57,7 @@ type Component
     | BodyComponent KinematicState CircleStyling
     | AvoidComponent AvoiderSettings
     | AvoideeComponent
+    | ScoreComponent Int
 
 
 type alias KinematicState =
@@ -118,6 +119,7 @@ type EntityType
     | Dog
     | Target
     | Tree
+    | Misc
 
 
 type alias Entity =
@@ -237,6 +239,15 @@ startingDog =
     ]
 
 
+startingScore =
+    [ { entityType = Misc
+      , components =
+            [ ScoreComponent 0
+            ]
+      }
+    ]
+
+
 target =
     [ { entityType = Target
       , components = [ AreaComponent 50 50 100 100 areaStyling ]
@@ -247,7 +258,7 @@ target =
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( { tick = 0
-      , entities = startingSheeps ++ startingDog ++ target ++ startingTrees ++ playfieldTrees
+      , entities = startingSheeps ++ startingDog ++ target ++ startingTrees ++ playfieldTrees ++ startingScore
       , gameSettings = { size = ( windowSize.width, windowSize.height ), color = "#bdb2ff" }
       , lastTick = Time.millisToPosix 0
       , currentDirection = Maybe.Nothing
@@ -312,10 +323,25 @@ update msg model =
             ( { model
                 | lastTick = tick
                 , currentDirection = Maybe.Nothing
-                , entities = updateVelocities model.currentDirection model.entities |> updatePositions
+                , entities = updateVelocities model.currentDirection model.entities |> updatePositions |> updateScore
               }
             , Cmd.none
             )
+
+
+updateScore : Entities -> Entities
+updateScore entities =
+    let
+        sheeps =
+            []
+
+        wolves =
+            []
+
+        areas =
+            []
+    in
+    entities
 
 
 updatePositions : Entities -> Entities
@@ -717,7 +743,7 @@ gameView model =
         ]
         ([ patternDefs, backgroundRectangle ]
             ++ (List.filterMap identity <|
-                    List.map render <|
+                    List.map (\c -> render model.gameSettings c) <|
                         List.sortBy zOrder renderComponents
                )
         )
@@ -732,6 +758,9 @@ zOrder component =
 
         AreaComponent _ _ _ _ _ ->
             -1
+
+        ScoreComponent _ ->
+            1
 
         _ ->
             999
@@ -764,8 +793,8 @@ createRotationString kstate styling =
     "rotate(" ++ String.fromFloat angle ++ " " ++ String.fromFloat x ++ " " ++ String.fromFloat y ++ ")"
 
 
-render : Component -> Maybe (Svg Msg)
-render zeComponent =
+render : GameSettings -> Component -> Maybe (Svg Msg)
+render gameSettings zeComponent =
     case zeComponent of
         BodyComponent location styling ->
             case styling.imagePath of
@@ -824,6 +853,15 @@ render zeComponent =
                     ]
                     []
 
+        ScoreComponent score ->
+            Just <|
+                Svg.text_
+                    [ x <| "20"
+                    , y <| String.fromInt <| Tuple.first gameSettings.size - 25
+                    , Svg.Attributes.fill "black"
+                    ]
+                    [ Svg.text <| "Score: " ++ String.fromInt score ]
+
         _ ->
             Nothing
 
@@ -835,6 +873,9 @@ isRenderable component =
             True
 
         AreaComponent _ _ _ _ _ ->
+            True
+
+        ScoreComponent _ ->
             True
 
         _ ->
