@@ -401,7 +401,7 @@ updateScore entities =
         score =
             case theTargetBoundingBox of
                 Just bb ->
-                    ( getScore bb sheepsStates ) - (getScore bb dogsStates )
+                    Basics.max (( getScore bb sheepsStates ) - (getScore bb dogsStates )) 0
                 Maybe.Nothing ->
                     0
     in
