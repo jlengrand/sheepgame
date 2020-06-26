@@ -44,9 +44,6 @@ type alias Model =
     , gameSettings : GameSettings
     , lastTick : Posix
     , currentDirection : Maybe Direction
-    , steps : List Float
-    , minX : Float
-    , maxX : Float
     }
 
 
@@ -163,7 +160,7 @@ rangeStep : Float -> Float -> Float -> List Float
 rangeStep from to step =
     List.map (\i -> from + (toFloat i * step)) <|
         List.range 0 <|
-            floor (((to - from ) / step) )
+            floor ((to - from) / step)
 
 
 createTreeRectangle : Float -> Float -> Float -> Float -> Entities
@@ -285,24 +282,18 @@ target =
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    let
-        extrema = BoundingBox2d.extrema startingTargetBBox
-        in
     ( { tick = 0
       , entities =
             target
                 ++ targetTrees startingTargetBBox
-              ++ startingSheeps
-              ++ startingDog
-              ++ startingTrees
-              ++ playfieldTrees
-              ++ startingScore
+                ++ startingSheeps
+                ++ startingDog
+                ++ startingTrees
+                ++ playfieldTrees
+                ++ startingScore
       , gameSettings = { size = ( windowSize.width, windowSize.height ), color = "#bdb2ff" }
       , lastTick = Time.millisToPosix 0
       , currentDirection = Maybe.Nothing
-      , steps = rangeStep (Pixels.inPixels extrema.minX) (Pixels.inPixels extrema.maxX) 30
-      , minX = (Pixels.inPixels extrema.minX)
-      , maxX = (Pixels.inPixels extrema.maxX)
       }
     , Cmd.none
     )
