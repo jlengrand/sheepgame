@@ -1,6 +1,7 @@
 module Main exposing (..)
 
 import Angle
+import BoundingBox2d exposing (BoundingBox2d)
 import Browser exposing (Document)
 import Browser.Events exposing (onAnimationFrame, onKeyDown)
 import Direction2d
@@ -53,10 +54,15 @@ type alias GameSettings =
 
 type Component
     = KeyboardComponent
-    | AreaComponent Int Int Int Int AreaStyling
+    | AreaComponent BoundingBox AreaStyling
     | BodyComponent KinematicState CircleStyling
     | AvoidComponent AvoiderSettings
     | AvoideeComponent
+    | ScoreComponent Int
+
+
+type alias BoundingBox =
+    BoundingBox2d Pixels TopLeftCoordinates
 
 
 type alias KinematicState =
@@ -118,6 +124,7 @@ type EntityType
     | Dog
     | Target
     | Tree
+    | Misc
 
 
 type alias Entity =
@@ -149,7 +156,7 @@ defaultAvoiderSettings =
 
 
 rangeStep : Float -> Float -> Float -> List Float
-rangeStep from to step =
+rangeStep f to step =
     List.map (\i -> toFloat i * step) <|
         List.range 0 <|
             floor (to / step)
@@ -237,9 +244,18 @@ startingDog =
     ]
 
 
+startingScore =
+    [ { entityType = Misc
+      , components =
+            [ ScoreComponent 0
+            ]
+      }
+    ]
+
+
 target =
     [ { entityType = Target
-      , components = [ AreaComponent 50 50 100 100 areaStyling ]
+      , components = [ AreaComponent (BoundingBox2d.from (Point2d.pixels 50 50) (Point2d.pixels 150 150)) areaStyling ]
       }
     ]
 
@@ -247,7 +263,7 @@ target =
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( { tick = 0
-      , entities = startingSheeps ++ startingDog ++ target ++ startingTrees ++ playfieldTrees
+      , entities = startingSheeps ++ startingDog ++ target ++ startingTrees ++ playfieldTrees ++ startingScore
       , gameSettings = { size = ( windowSize.width, windowSize.height ), color = "#bdb2ff" }
       , lastTick = Time.millisToPosix 0
       , currentDirection = Maybe.Nothing
@@ -312,10 +328,124 @@ update msg model =
             ( { model
                 | lastTick = tick
                 , currentDirection = Maybe.Nothing
-                , entities = updateVelocities model.currentDirection model.entities |> updatePositions
+                , entities = updateVelocities model.currentDirection model.entities |> updatePositions |> updateScore
               }
             , Cmd.none
             )
+
+
+isDog : Entity -> Bool
+isDog entity =
+    case entity.entityType of
+        Dog ->
+            True
+
+        _ ->
+            False
+
+isSheep : Entity -> Bool
+isSheep entity =
+    case entity.entityType of
+        Sheep ->
+            True
+
+        _ ->
+            False
+
+updateScore : Entities -> Entities
+updateScore entities =
+    -- TODO : Do much better
+    let
+        dogsStates =
+            entities
+            |> List.filter
+                isDog
+            |> List.concatMap
+                (\entity ->
+                    entity.components
+                        |> List.filterMap
+                            getKinematicState
+                )
+
+        sheepsStates =
+            entities
+            |> List.filter
+                isSheep
+            |> List.concatMap
+                (\entity ->
+                    entity.components
+                        |> List.filterMap
+                            getKinematicState
+                )
+
+
+        theTarget =
+            List.filter
+                (\e ->
+                    case e.entityType of
+                        Target ->
+                            True
+
+                        _ ->
+                            False
+                )
+                entities
+                |> List.head
+
+        theTargetBoundingBox  =
+            case theTarget of
+                Just t ->
+                    getAreaComponentOfEntity t
+                Maybe.Nothing ->
+                    Maybe.Nothing
+        score =
+            case theTargetBoundingBox of
+                Just bb ->
+                    Basics.max (( getScore bb sheepsStates ) - (getScore bb dogsStates )) 0
+                Maybe.Nothing ->
+                    0
+    in
+    List.map
+        (\e -> { e | components = updateScoreOfComponents score e.components })
+        entities
+
+getScore : BoundingBox -> List KinematicState -> Int
+getScore bbox kstates =
+    kstates
+    |> List.map
+        (\ks -> BoundingBox2d.contains ks.position bbox
+        )
+    |> List.filter
+        identity
+    |> List.length
+
+
+
+getAreaComponentOfEntity : Entity -> Maybe BoundingBox
+getAreaComponentOfEntity entity =
+    List.filterMap
+        (\c -> case c of
+            AreaComponent bb _ ->
+                Just bb
+            _ ->
+                Maybe.Nothing
+                )
+        entity.components
+    |> List.head
+
+
+updateScoreOfComponents : Int -> List Component -> List Component
+updateScoreOfComponents score components =
+    List.map
+        (\c ->
+            case c of
+                ScoreComponent _ ->
+                    ScoreComponent score
+
+                _ ->
+                    c
+        )
+        components
 
 
 updatePositions : Entities -> Entities
@@ -331,13 +461,9 @@ updatePositions entities =
         entities
 
 
-
--- findStaticEntities
-
-
 findColliders : Entities -> List KinematicState
 findColliders entities =
-    List.filter isAColider entities
+    List.filter isACollider entities
         |> List.concatMap
             (\entity ->
                 entity.components
@@ -509,11 +635,6 @@ applyForce components force =
             )
 
 
-desiredAvoid : Point2d Pixels TopLeftCoordinates -> KinematicState -> Vector2d Pixels TopLeftCoordinates
-desiredAvoid myPosition avoideePostion =
-    Vector2d.from myPosition avoideePostion.position
-
-
 getAvoideesLocation : Entities -> List KinematicState
 getAvoideesLocation entities =
     let
@@ -549,8 +670,8 @@ getAvoiderSettings c =
             Nothing
 
 
-isAColider : Entity -> Bool
-isAColider entity =
+isACollider : Entity -> Bool
+isACollider entity =
     List.any
         (\c ->
             case c of
@@ -717,7 +838,7 @@ gameView model =
         ]
         ([ patternDefs, backgroundRectangle ]
             ++ (List.filterMap identity <|
-                    List.map render <|
+                    List.map (\c -> render model.gameSettings c) <|
                         List.sortBy zOrder renderComponents
                )
         )
@@ -730,8 +851,11 @@ zOrder component =
         BodyComponent _ _ ->
             0
 
-        AreaComponent _ _ _ _ _ ->
+        AreaComponent _ _ ->
             -1
+
+        ScoreComponent _ ->
+            1
 
         _ ->
             999
@@ -764,8 +888,8 @@ createRotationString kstate styling =
     "rotate(" ++ String.fromFloat angle ++ " " ++ String.fromFloat x ++ " " ++ String.fromFloat y ++ ")"
 
 
-render : Component -> Maybe (Svg Msg)
-render zeComponent =
+render : GameSettings -> Component -> Maybe (Svg Msg)
+render gameSettings zeComponent =
     case zeComponent of
         BodyComponent location styling ->
             case styling.imagePath of
@@ -802,8 +926,14 @@ render zeComponent =
                             ]
                             []
 
-        AreaComponent zeX zeY zeWidth zeHeight styling ->
+        AreaComponent boundingBox styling ->
             let
+                extrema =
+                    BoundingBox2d.extrema boundingBox
+
+                ( width, height ) =
+                    BoundingBox2d.dimensions boundingBox
+
                 fillStyling =
                     case styling.patternName of
                         Just id ->
@@ -814,15 +944,24 @@ render zeComponent =
             in
             Just <|
                 Svg.rect
-                    [ x <| String.fromInt zeX
-                    , y <| String.fromInt zeY
-                    , Svg.Attributes.width <| String.fromInt zeWidth
-                    , Svg.Attributes.height <| String.fromInt zeHeight
+                    [ x <| String.fromFloat (Pixels.inPixels extrema.minX)
+                    , y <| String.fromFloat (Pixels.inPixels extrema.minY)
+                    , Svg.Attributes.width <| String.fromFloat (Pixels.inPixels width)
+                    , Svg.Attributes.height <| String.fromFloat (Pixels.inPixels height)
                     , fillStyling
                     , rx "0"
                     , ry "0"
                     ]
                     []
+
+        ScoreComponent score ->
+            Just <|
+                Svg.text_
+                    [ x <| "20"
+                    , y <| String.fromInt <| Tuple.first gameSettings.size - 25
+                    , Svg.Attributes.fill "black"
+                    ]
+                    [ Svg.text <| "Score: " ++ String.fromInt score ]
 
         _ ->
             Nothing
@@ -834,7 +973,10 @@ isRenderable component =
         BodyComponent _ _ ->
             True
 
-        AreaComponent _ _ _ _ _ ->
+        AreaComponent _ _ ->
+            True
+
+        ScoreComponent _ ->
             True
 
         _ ->
