@@ -146,7 +146,7 @@ type alias Flock =
 
 
 dogAvoiderSettings =
-    { strength = 1000
+    { strength = 100
     , avoid_radius = 150
     , avoidee_id = "dog"
     }
@@ -154,7 +154,7 @@ dogAvoiderSettings =
 
 treeAvoiderSettings =
     { strength = 50
-    , avoid_radius = 11.5
+    , avoid_radius = 40
     , avoidee_id = "tree"
     }
 
@@ -215,30 +215,34 @@ playfieldTrees =
 startingSheeps =
     [ { entityType = Sheep
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 300 300) (Vector2d.pixels 0 0) 17.5 True (Pixels.pixels 1.2)) sheepStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 300 300) (Vector2d.pixels 0 0.1) 17.5 True (Pixels.pixels 1)) sheepStyling
             , AvoidComponent dogAvoiderSettings
-            , AvoidComponent treeAvoiderSettings
+
+            -- , AvoidComponent treeAvoiderSettings
             ]
       }
     , { entityType = Sheep
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 260 350) (Vector2d.pixels 0 0) 17.5 True (Pixels.pixels 1.2)) sheepStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 260 350) (Vector2d.pixels 0.1 0) 17.5 True (Pixels.pixels 1)) sheepStyling
             , AvoidComponent dogAvoiderSettings
-            , AvoidComponent treeAvoiderSettings
+
+            -- , AvoidComponent treeAvoiderSettings
             ]
       }
     , { entityType = Sheep
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 250 300) (Vector2d.pixels 0 0) 17.5 True (Pixels.pixels 1.2)) sheepStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 250 300) (Vector2d.pixels 0 0.1) 17.5 True (Pixels.pixels 1)) sheepStyling
             , AvoidComponent dogAvoiderSettings
-            , AvoidComponent treeAvoiderSettings
+
+            -- , AvoidComponent treeAvoiderSettings
             ]
       }
     , { entityType = Sheep
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 250 375) (Vector2d.pixels 0 0) 17.5 True (Pixels.pixels 1.2)) sheepStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 250 375) (Vector2d.pixels 0.1 0) 17.5 True (Pixels.pixels 1)) sheepStyling
             , AvoidComponent dogAvoiderSettings
-            , AvoidComponent treeAvoiderSettings
+
+            -- , AvoidComponent treeAvoiderSettings
             ]
       }
     ]
@@ -434,7 +438,7 @@ findNewPosition kinematicState =
     let
         scaled_velocity =
             if Quantity.greaterThan kinematicState.max_v (Vector2d.length kinematicState.velocity) then
-                Maybe.withDefault Vector2d.zero <|
+                Maybe.withDefault kinematicState.velocity <|
                     Maybe.map (Vector2d.withLength kinematicState.max_v) <|
                         Vector2d.direction kinematicState.velocity
 
@@ -475,11 +479,7 @@ avoid ( settings, avoidees ) avoider =
     let
         avoiderPostion =
             List.filterMap getKinematicState avoider
-
-        avoiderAvoiderSettings =
-            List.filterMap getAvoiderSettings avoider
     in
-    -- We only use the first one!
     case List.head avoiderPostion of
         Nothing ->
             avoider
@@ -502,7 +502,8 @@ avoid ( settings, avoidees ) avoider =
                                             0
 
                                         else
-                                            settings.strength / distancevalue
+                                            -- distancevalue / settings.strength
+                                            0
                                 in
                                 distance
                                     |> Vector2d.direction
@@ -511,6 +512,9 @@ avoid ( settings, avoidees ) avoider =
                                     |> Vector2d.reverse
                             )
                         |> Vector2d.sum
+
+                steering =
+                    desired |> Vector2d.plus avoiderKs.velocity
             in
             applyForce avoider desired
 
@@ -524,16 +528,12 @@ applyForce components force =
                     BodyComponent ks styling ->
                         BodyComponent
                             { ks | velocity = Vector2d.plus ks.velocity force }
+                            -- { ks | velocity = force }
                             styling
 
                     _ ->
                         c
             )
-
-
-desiredAvoid : Point2d Pixels TopLeftCoordinates -> KinematicState -> Vector2d Pixels TopLeftCoordinates
-desiredAvoid myPosition avoideePostion =
-    Vector2d.from myPosition avoideePostion.position
 
 
 getAvoideesLocation : Entities -> AvoiderSettings -> List KinematicState
