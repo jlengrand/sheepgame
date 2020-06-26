@@ -797,6 +797,14 @@ view model =
 gameView : Model -> Html Msg
 gameView model =
     let
+        instructions =
+            Svg.text_
+                [ x <| "60"
+                , y <| "35"
+                , Svg.Attributes.fill "black"
+                ]
+                [ Svg.text <| "Use the arrow keys and lead all the goats to their pen" ]
+
         backgroundRectangle =
             Svg.rect
                 [ Svg.Attributes.height <| String.fromInt <| Tuple.first model.gameSettings.size
@@ -846,6 +854,7 @@ gameView model =
                     List.map (\c -> render model.gameSettings c) <|
                         List.sortBy zOrder renderComponents
                )
+            ++ [ instructions ]
         )
 
 
