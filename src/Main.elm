@@ -343,6 +343,7 @@ isDog entity =
         _ ->
             False
 
+
 isSheep : Entity -> Bool
 isSheep entity =
     case entity.entityType of
@@ -352,32 +353,32 @@ isSheep entity =
         _ ->
             False
 
+
 updateScore : Entities -> Entities
 updateScore entities =
     -- TODO : Do much better
     let
         dogsStates =
             entities
-            |> List.filter
-                isDog
-            |> List.concatMap
-                (\entity ->
-                    entity.components
-                        |> List.filterMap
-                            getKinematicState
-                )
+                |> List.filter
+                    isDog
+                |> List.concatMap
+                    (\entity ->
+                        entity.components
+                            |> List.filterMap
+                                getKinematicState
+                    )
 
         sheepsStates =
             entities
-            |> List.filter
-                isSheep
-            |> List.concatMap
-                (\entity ->
-                    entity.components
-                        |> List.filterMap
-                            getKinematicState
-                )
-
+                |> List.filter
+                    isSheep
+                |> List.concatMap
+                    (\entity ->
+                        entity.components
+                            |> List.filterMap
+                                getKinematicState
+                    )
 
         theTarget =
             List.filter
@@ -392,16 +393,19 @@ updateScore entities =
                 entities
                 |> List.head
 
-        theTargetBoundingBox  =
+        theTargetBoundingBox =
             case theTarget of
                 Just t ->
                     getAreaComponentOfEntity t
+
                 Maybe.Nothing ->
                     Maybe.Nothing
+
         score =
             case theTargetBoundingBox of
                 Just bb ->
-                    Basics.max (( getScore bb sheepsStates ) - (getScore bb dogsStates )) 0
+                    Basics.max (getScore bb sheepsStates - getScore bb dogsStates) 0
+
                 Maybe.Nothing ->
                     0
     in
@@ -409,29 +413,30 @@ updateScore entities =
         (\e -> { e | components = updateScoreOfComponents score e.components })
         entities
 
+
 getScore : BoundingBox -> List KinematicState -> Int
 getScore bbox kstates =
     kstates
-    |> List.map
-        (\ks -> BoundingBox2d.contains ks.position bbox
-        )
-    |> List.filter
-        identity
-    |> List.length
-
+        |> List.map
+            (\ks -> BoundingBox2d.contains ks.position bbox)
+        |> List.filter
+            identity
+        |> List.length
 
 
 getAreaComponentOfEntity : Entity -> Maybe BoundingBox
 getAreaComponentOfEntity entity =
     List.filterMap
-        (\c -> case c of
-            AreaComponent bb _ ->
-                Just bb
-            _ ->
-                Maybe.Nothing
-                )
+        (\c ->
+            case c of
+                AreaComponent bb _ ->
+                    Just bb
+
+                _ ->
+                    Maybe.Nothing
+        )
         entity.components
-    |> List.head
+        |> List.head
 
 
 updateScoreOfComponents : Int -> List Component -> List Component
