@@ -178,11 +178,11 @@ createTreeRectangle xMin xMax yMin yMax =
             (\x -> Tuple.pair x yMin)
             (rangeStep xMin xMax 30)
             ++ List.map
-                (\x -> Tuple.pair x yMax)
-                (rangeStep xMin xMax 30)
-            ++ List.map
                 (\y -> Tuple.pair xMax y)
                 (rangeStep yMin yMax 30)
+            ++ List.map
+                (\x -> Tuple.pair x yMax)
+                (rangeStep xMin xMax 30)
             ++ List.map
                 (\y -> Tuple.pair xMin y)
                 (rangeStep yMin yMax 30)
@@ -191,11 +191,15 @@ createTreeRectangle xMin xMax yMin yMax =
 targetTrees : BoundingBox -> Entities
 targetTrees boundingBox =
     -- We'll accept target is a single rectangle
+    -- We could partition in a smarter way but I don't want to fuck with randoms now
     let
         extrema =
             BoundingBox2d.extrema boundingBox
+
+        trees =
+            createTreeRectangle (Pixels.inPixels extrema.minX) (Pixels.inPixels extrema.maxX) (Pixels.inPixels extrema.minY) (Pixels.inPixels extrema.maxY)
     in
-    createTreeRectangle (Pixels.inPixels extrema.minX) (Pixels.inPixels extrema.maxX) (Pixels.inPixels extrema.minY) (Pixels.inPixels extrema.maxY)
+    List.take (floor (toFloat (List.length trees) * 0.9)) trees
 
 
 startingTrees =
@@ -270,7 +274,7 @@ startingScore =
 
 
 startingTargetBBox =
-    BoundingBox2d.from (Point2d.pixels 150 150) (Point2d.pixels 300 400)
+    BoundingBox2d.from (Point2d.pixels 150 150) (Point2d.pixels 350 270)
 
 
 target =
