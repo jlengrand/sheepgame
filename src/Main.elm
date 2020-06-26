@@ -11,6 +11,7 @@ import Html exposing (Html)
 import Json.Decode
 import Pixels exposing (Pixels)
 import Point2d exposing (Point2d)
+import String exposing (toInt)
 import Svg exposing (Svg)
 import Svg.Attributes exposing (cx, cy, height, r, rx, ry, transform, width, x, xlinkHref, y)
 import Time exposing (Posix)
@@ -156,13 +157,14 @@ defaultAvoiderSettings =
 
 
 rangeStep : Float -> Float -> Float -> List Float
-rangeStep f to step =
-    List.map (\i -> toFloat i * step) <|
+rangeStep from to step =
+    List.map (\i -> from + (toFloat i * step)) <|
         List.range 0 <|
-            floor (to / step)
+            floor ((to - from) / step)
 
 
-startingTrees =
+createTreeRectangle : Float -> Float -> Float -> Float -> Entities
+createTreeRectangle xMin xMax yMin yMax =
     List.map
         (\( x, y ) ->
             { entityType = Tree
@@ -173,17 +175,35 @@ startingTrees =
         )
     <|
         List.map
-            (\x -> Tuple.pair x 0)
-            (rangeStep 0 windowSize.width 30)
+            (\x -> Tuple.pair x yMin)
+            (rangeStep xMin xMax 30)
             ++ List.map
-                (\x -> Tuple.pair x windowSize.height)
-                (rangeStep 0 windowSize.width 30)
+                (\y -> Tuple.pair xMax y)
+                (rangeStep yMin yMax 30)
             ++ List.map
-                (\y -> Tuple.pair windowSize.width y)
-                (rangeStep 0 windowSize.height 30)
+                (\x -> Tuple.pair x yMax)
+                (rangeStep xMin xMax 30)
             ++ List.map
-                (\y -> Tuple.pair 0 y)
-                (rangeStep 0 windowSize.height 30)
+                (\y -> Tuple.pair xMin y)
+                (rangeStep yMin yMax 30)
+
+
+targetTrees : BoundingBox -> Entities
+targetTrees boundingBox =
+    -- We'll accept target is a single rectangle
+    -- We could partition in a smarter way but I don't want to fuck with randoms now
+    let
+        extrema =
+            BoundingBox2d.extrema boundingBox
+
+        trees =
+            createTreeRectangle (Pixels.inPixels extrema.minX) (Pixels.inPixels extrema.maxX) (Pixels.inPixels extrema.minY) (Pixels.inPixels extrema.maxY)
+    in
+    List.take (floor (toFloat (List.length trees) * 0.9)) trees
+
+
+startingTrees =
+    createTreeRectangle 0 windowSize.width 0 windowSize.height
 
 
 playfieldTrees =
@@ -253,9 +273,13 @@ startingScore =
     ]
 
 
+startingTargetBBox =
+    BoundingBox2d.from (Point2d.pixels 150 150) (Point2d.pixels 350 270)
+
+
 target =
     [ { entityType = Target
-      , components = [ AreaComponent (BoundingBox2d.from (Point2d.pixels 50 50) (Point2d.pixels 150 150)) areaStyling ]
+      , components = [ AreaComponent startingTargetBBox areaStyling ]
       }
     ]
 
@@ -263,7 +287,14 @@ target =
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( { tick = 0
-      , entities = startingSheeps ++ startingDog ++ target ++ startingTrees ++ playfieldTrees ++ startingScore
+      , entities =
+            target
+                ++ targetTrees startingTargetBBox
+                ++ startingSheeps
+                ++ startingDog
+                ++ startingTrees
+                ++ playfieldTrees
+                ++ startingScore
       , gameSettings = { size = ( windowSize.width, windowSize.height ), color = "#bdb2ff" }
       , lastTick = Time.millisToPosix 0
       , currentDirection = Maybe.Nothing
