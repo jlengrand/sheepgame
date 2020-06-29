@@ -19,7 +19,7 @@ import Vector2d exposing (Vector2d)
 
 
 frictionRate =
-    0.96
+    0.98
 
 
 windowSize =
@@ -64,9 +64,11 @@ type Component
 type alias KinematicState =
     { position : Point2d Pixels TopLeftCoordinates
     , velocity : Vector2d Pixels TopLeftCoordinates
+    , acceleration : Vector2d Pixels TopLeftCoordinates
     , circleRadius : Float
     , collides : Bool
     , max_v : Quantity.Quantity Float Pixels
+    , max_a : Quantity.Quantity Float Pixels
     }
 
 
@@ -78,7 +80,7 @@ type alias KinematicStateAndBlockRadius =
 
 type alias AvoiderSettings =
     { strength : Float
-    , avoid_radius : Float
+    , avoid_radius : Quantity.Quantity Float Pixels
     , avoidee_id : String
     }
 
@@ -146,16 +148,9 @@ type alias Flock =
 
 
 dogAvoiderSettings =
-    { strength = 100
-    , avoid_radius = 150
+    { strength = 1.3
+    , avoid_radius = Pixels.pixels 250
     , avoidee_id = "dog"
-    }
-
-
-treeAvoiderSettings =
-    { strength = 50
-    , avoid_radius = 40
-    , avoidee_id = "tree"
     }
 
 
@@ -171,7 +166,7 @@ startingTrees =
         (\( x, y ) ->
             { entityType = Tree
             , components =
-                [ BodyComponent (KinematicState (Point2d.pixels x y) (Vector2d.pixels 0 0) 15 True (Pixels.pixels 0)) <| CircleStyling 15 "#caffbf" <| Just "/static/objects/tree.png"
+                [ BodyComponent (KinematicState (Point2d.pixels x y) (Vector2d.pixels 0 0) (Vector2d.pixels 0 0) 15 True (Pixels.pixels 0) (Pixels.pixels 0)) <| CircleStyling 15 "#caffbf" <| Just "/static/objects/tree.png"
                 ]
             }
         )
@@ -193,56 +188,43 @@ startingTrees =
 playfieldTrees =
     [ { entityType = Tree
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 400 130) (Vector2d.pixels 0 0) 37.5 True (Pixels.pixels 0)) treeStyling
-            , AvoideeComponent "tree"
+            [ BodyComponent (KinematicState (Point2d.pixels 400 130) (Vector2d.pixels 0 0) (Vector2d.pixels 0 0) 37.5 True (Pixels.pixels 0) (Pixels.pixels 0)) treeStyling
             ]
       }
     , { entityType = Tree
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 380 480) (Vector2d.pixels 0 0) 37.5 True (Pixels.pixels 0)) treeStyling
-            , AvoideeComponent "tree"
+            [ BodyComponent (KinematicState (Point2d.pixels 380 480) (Vector2d.pixels 0 0) (Vector2d.pixels 0 0) 37.5 True (Pixels.pixels 0) (Pixels.pixels 0)) treeStyling
             ]
       }
     , { entityType = Tree
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 200 320) (Vector2d.pixels 0 0) 37.5 True (Pixels.pixels 0)) treeStyling
-            , AvoideeComponent "tree"
+            [ BodyComponent (KinematicState (Point2d.pixels 200 320) (Vector2d.pixels 0 0) (Vector2d.pixels 0 0) 37.5 True (Pixels.pixels 0) (Pixels.pixels 0)) treeStyling
             ]
       }
     ]
 
 
+sheepBody x y =
+    BodyComponent (KinematicState (Point2d.pixels x y) (Vector2d.pixels 0 0) (Vector2d.pixels 0 0) 17.5 True (Pixels.pixels 4) (Pixels.pixels 0.1)) sheepStyling
+
+
 startingSheeps =
     [ { entityType = Sheep
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 300 300) (Vector2d.pixels 0 0.1) 17.5 True (Pixels.pixels 1)) sheepStyling
+            [ sheepBody 300 300
             , AvoidComponent dogAvoiderSettings
-
-            -- , AvoidComponent treeAvoiderSettings
             ]
       }
     , { entityType = Sheep
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 260 350) (Vector2d.pixels 0.1 0) 17.5 True (Pixels.pixels 1)) sheepStyling
+            [ sheepBody 260 350
             , AvoidComponent dogAvoiderSettings
-
-            -- , AvoidComponent treeAvoiderSettings
             ]
       }
     , { entityType = Sheep
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 250 300) (Vector2d.pixels 0 0.1) 17.5 True (Pixels.pixels 1)) sheepStyling
+            [ sheepBody 250 300
             , AvoidComponent dogAvoiderSettings
-
-            -- , AvoidComponent treeAvoiderSettings
-            ]
-      }
-    , { entityType = Sheep
-      , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 250 375) (Vector2d.pixels 0.1 0) 17.5 True (Pixels.pixels 1)) sheepStyling
-            , AvoidComponent dogAvoiderSettings
-
-            -- , AvoidComponent treeAvoiderSettings
             ]
       }
     ]
@@ -251,7 +233,7 @@ startingSheeps =
 startingDog =
     [ { entityType = Dog
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 50 50) (Vector2d.pixels 0 0) 17.5 False (Pixels.pixels 75)) dogStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 50 50) (Vector2d.pixels 0 0) (Vector2d.pixels 0 0) 17.5 False (Pixels.pixels 3) (Pixels.pixels 0.6)) dogStyling
             , KeyboardComponent
             , AvoideeComponent "dog"
             ]
@@ -353,10 +335,6 @@ updatePositions entities =
         entities
 
 
-
--- findStaticEntities
-
-
 findColliders : Entities -> List KinematicState
 findColliders entities =
     List.filter isAColider entities
@@ -433,22 +411,32 @@ circlesCollide p1 p2 =
         distance <= threshold
 
 
+limit : Quantity.Quantity Float Pixels -> Vector2d Pixels TopLeftCoordinates -> Vector2d Pixels TopLeftCoordinates
+limit m v =
+    -- Limit a vector to a given quantity
+    if Vector2d.length v |> Quantity.lessThan m then
+        v
+
+    else
+        case Vector2d.direction v of
+            Just dir ->
+                Vector2d.withLength m dir
+
+            Nothing ->
+                Vector2d.zero
+
+
 findNewPosition : KinematicState -> KinematicState
 findNewPosition kinematicState =
-    let
-        scaled_velocity =
-            if Quantity.greaterThan kinematicState.max_v (Vector2d.length kinematicState.velocity) then
-                Maybe.withDefault kinematicState.velocity <|
-                    Maybe.map (Vector2d.withLength kinematicState.max_v) <|
-                        Vector2d.direction kinematicState.velocity
+    if Quantity.equalWithin (Pixels.pixels 0) kinematicState.max_v (Pixels.pixels 0) then
+        { kinematicState | velocity = Vector2d.zero }
 
-            else
-                kinematicState.velocity
-    in
-    { kinematicState
-        | position = Point2d.translateBy scaled_velocity kinematicState.position
-        , velocity = Vector2d.scaleBy frictionRate scaled_velocity
-    }
+    else
+        { kinematicState
+            | position = Point2d.translateBy (limit kinematicState.max_v kinematicState.velocity) kinematicState.position
+            , velocity = limit kinematicState.max_v <| Vector2d.plus (Vector2d.scaleBy frictionRate kinematicState.velocity) (limit kinematicState.max_a kinematicState.acceleration)
+            , acceleration = Vector2d.zero
+        }
 
 
 updateVelocities : Maybe Direction -> Entities -> Entities
@@ -492,29 +480,28 @@ avoid ( settings, avoidees ) avoider =
                             (\avoidee ->
                                 let
                                     distance =
-                                        Vector2d.from avoiderKs.position avoidee.position
+                                        Vector2d.from avoidee.position avoiderKs.position
 
                                     distancevalue =
                                         Pixels.inPixels (Vector2d.length distance)
 
                                     scaled =
-                                        if distancevalue > settings.avoid_radius then
-                                            0
+                                        if Quantity.greaterThan settings.avoid_radius (Vector2d.length distance) then
+                                            Vector2d.zero
 
                                         else
-                                            -- distancevalue / settings.strength
-                                            0
+                                            distance |> Vector2d.scaleBy 0.1 |> Vector2d.scaleBy settings.strength
                                 in
-                                distance
-                                    |> Vector2d.direction
-                                    |> Maybe.map (Vector2d.withLength (Pixels.pixels scaled))
-                                    |> Maybe.withDefault (Vector2d.pixels 0 0)
-                                    |> Vector2d.reverse
+                                scaled
+                             -- |> Vector2d.direction
+                             -- |> Maybe.map (Vector2d.withLength (Pixels.pixels scaled))
+                             -- |> Maybe.withDefault (Vector2d.pixels 0 0)
+                             -- |> Vector2d.reverse
                             )
                         |> Vector2d.sum
 
-                steering =
-                    desired |> Vector2d.plus avoiderKs.velocity
+                -- steering =
+                --     desired |> Vector2d.plus avoiderKs.velocity
             in
             applyForce avoider desired
 
@@ -527,8 +514,7 @@ applyForce components force =
                 case c of
                     BodyComponent ks styling ->
                         BodyComponent
-                            { ks | velocity = Vector2d.plus ks.velocity force }
-                            -- { ks | velocity = force }
+                            { ks | acceleration = Vector2d.plus ks.acceleration force }
                             styling
 
                     _ ->
@@ -821,7 +807,9 @@ render zeComponent =
             case styling.imagePath of
                 Just path ->
                     Just <|
-                        -- Svg.g [] [
+                        -- Svg.g []
+                        --     [
+                        -- SHOW THE THING
                         Svg.image
                             [ x <| String.fromFloat <| (Point2d.toPixels location.position).x - styling.radius
                             , y <| String.fromFloat <| (Point2d.toPixels location.position).y - styling.radius
@@ -832,16 +820,26 @@ render zeComponent =
                             ]
                             []
 
-                --         Svg.circle
-                --             [ cx <| String.fromFloat (Point2d.toPixels location.position).x
-                --             , cy <| String.fromFloat (Point2d.toPixels location.position).y
-                --             , r <| String.fromFloat location.circleRadius
-                --             , Svg.Attributes.stroke styling.color
-                --             , Svg.Attributes.strokeWidth "2"
-                --             , Svg.Attributes.fill "none"
-                --             ]
-                --             []
-                -- -- ]
+                -- -- SHOW BOUNDING CIRCLES
+                -- , Svg.circle
+                --     [ cx <| String.fromFloat (Point2d.toPixels location.position).x
+                --     , cy <| String.fromFloat (Point2d.toPixels location.position).y
+                --     , r <| String.fromFloat location.circleRadius
+                --     , Svg.Attributes.stroke styling.color
+                --     , Svg.Attributes.strokeWidth "2"
+                --     , Svg.Attributes.fill "none"
+                --     ]
+                --     []
+                -- -- SHOW VELOCITIES
+                -- , Svg.line
+                --     [ Svg.Attributes.x1 <| String.fromFloat <| (Point2d.toPixels location.position).x
+                --     , Svg.Attributes.y1 <| String.fromFloat <| (Point2d.toPixels location.position).y
+                --     , Svg.Attributes.x2 <| String.fromFloat <| (Point2d.toPixels (Point2d.translateBy (Vector2d.scaleBy 10 location.velocity) location.position)).x
+                --     , Svg.Attributes.y2 <| String.fromFloat <| (Point2d.toPixels (Point2d.translateBy (Vector2d.scaleBy 10 location.velocity) location.position)).y
+                --     , Svg.Attributes.style "stroke:rgb(0,0,0);stroke-width:4"
+                --     ]
+                --     []
+                -- ]
                 _ ->
                     Just <|
                         Svg.circle
