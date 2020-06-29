@@ -11,6 +11,7 @@ import Html exposing (Html)
 import Json.Decode
 import Pixels exposing (Pixels)
 import Point2d exposing (Point2d)
+import Quantity
 import String exposing (toInt)
 import Svg exposing (Svg)
 import Svg.Attributes exposing (cx, cy, height, r, rx, ry, transform, width, x, xlinkHref, y)
@@ -64,7 +65,6 @@ type Component
 
 type alias BoundingBox =
     BoundingBox2d Pixels TopLeftCoordinates
-
 
 
 type alias KinematicState =
@@ -685,7 +685,6 @@ applyForce components force =
                     _ ->
                         c
             )
-
 
 
 getAvoideesLocation : Entities -> AvoiderSettings -> List KinematicState
