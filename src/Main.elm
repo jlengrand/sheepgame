@@ -155,8 +155,8 @@ type alias Flock =
 
 
 dogAvoiderSettings =
-    { strength = 1.3
-    , avoid_radius = Pixels.pixels 250
+    { strength = 1
+    , avoid_radius = Pixels.pixels 170
     , avoidee_id = "dog"
     }
 
@@ -259,7 +259,7 @@ startingSheeps =
 startingDog =
     [ { entityType = Dog
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 50 50) (Vector2d.pixels 0 0) (Vector2d.pixels 0 0) 17.5 False (Pixels.pixels 3) (Pixels.pixels 0.6)) dogStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 50 50) (Vector2d.pixels 0 0) (Vector2d.pixels 0 0) 17.5 False (Pixels.pixels 6) (Pixels.pixels 2)) dogStyling
             , KeyboardComponent
             , AvoideeComponent "dog"
             ]
@@ -837,16 +837,16 @@ findNewVelocityOfDog : Direction -> KinematicState -> KinematicState
 findNewVelocityOfDog direction kstate =
     case direction of
         Up ->
-            { kstate | velocity = Vector2d.plus kstate.velocity <| Vector2d.pixels 0 -2 }
+            { kstate | velocity = Vector2d.plus kstate.velocity <| Maybe.withDefault Vector2d.zero <| Maybe.map (Vector2d.withLength kstate.max_a) <| Vector2d.direction <| Vector2d.pixels 0 -1 }
 
         Down ->
-            { kstate | velocity = Vector2d.plus kstate.velocity <| Vector2d.pixels 0 2 }
+            { kstate | velocity = Vector2d.plus kstate.velocity <| Maybe.withDefault Vector2d.zero <| Maybe.map (Vector2d.withLength kstate.max_a) <| Vector2d.direction <| Vector2d.pixels 0 1 }
 
         Left ->
-            { kstate | velocity = Vector2d.plus kstate.velocity <| Vector2d.pixels -2 0 }
+            { kstate | velocity = Vector2d.plus kstate.velocity <| Maybe.withDefault Vector2d.zero <| Maybe.map (Vector2d.withLength kstate.max_a) <| Vector2d.direction <| Vector2d.pixels -1 0 }
 
         Right ->
-            { kstate | velocity = Vector2d.plus kstate.velocity <| Vector2d.pixels 2 0 }
+            { kstate | velocity = Vector2d.plus kstate.velocity <| Maybe.withDefault Vector2d.zero <| Maybe.map (Vector2d.withLength kstate.max_a) <| Vector2d.direction <| Vector2d.pixels 1 0 }
 
         Other ->
             kstate
