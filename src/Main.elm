@@ -547,7 +547,15 @@ findNewPositionMaybeBlocked colliders kinematicState =
                 findNewPosition
                     { kinematicState
                         | velocity =
-                            Vector2d.withLength (Pixels.pixels 1.3) <| Maybe.withDefault Direction2d.x <| Vector2d.direction <| Vector2d.from blocker.position kinematicState.position
+                            Vector2d.withLength (Pixels.pixels 1.3) <|
+                                Maybe.withDefault Direction2d.x <|
+                                    Vector2d.direction <|
+                                        Vector2d.from blocker.position kinematicState.position
+                        , acceleration =
+                            Vector2d.withLength kinematicState.max_a <|
+                                Maybe.withDefault Direction2d.x <|
+                                    Vector2d.direction <|
+                                        Vector2d.from blocker.position kinematicState.position
                     }
 
         _ ->
