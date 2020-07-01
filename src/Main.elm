@@ -20,7 +20,7 @@ import Vector2d exposing (Vector2d)
 
 
 frictionRate =
-    0.98
+    0.97
 
 
 windowSize =
@@ -205,7 +205,7 @@ targetTrees boundingBox =
         trees =
             createTreeRectangle (Pixels.inPixels extrema.minX) (Pixels.inPixels extrema.maxX) (Pixels.inPixels extrema.minY) (Pixels.inPixels extrema.maxY)
     in
-    List.take (floor (toFloat (List.length trees) * 0.9)) trees
+    List.take (floor (toFloat (List.length trees) * 0.8)) trees
 
 
 startingTrees =
@@ -292,7 +292,7 @@ startingScore =
 
 
 startingTargetBBox =
-    BoundingBox2d.from (Point2d.pixels 500 150) (Point2d.pixels 650 270)
+    BoundingBox2d.from (Point2d.pixels 300 100) (Point2d.pixels 650 270)
 
 
 target =
