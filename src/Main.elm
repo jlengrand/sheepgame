@@ -20,15 +20,11 @@ import Vector2d exposing (Vector2d)
 
 
 frictionRate =
-    0.97
+    0.96
 
 
 windowSize =
     { width = 700, height = 700 }
-
-
-boxSize =
-    500
 
 
 minBoxSide =
@@ -238,7 +234,7 @@ playfieldTrees =
       }
     , { entityType = Tree
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 200 320) (Vector2d.pixels 0 0) (Vector2d.pixels 0 0) 37.5 True (Pixels.pixels 0) (Pixels.pixels 0)) treeStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 100 320) (Vector2d.pixels 0 0) (Vector2d.pixels 0 0) 37.5 True (Pixels.pixels 0) (Pixels.pixels 0)) treeStyling
             ]
       }
     ]
@@ -249,7 +245,7 @@ sheepBody x y =
 
 
 sheepCohesion =
-    CohesionSettings 8 (Pixels.pixels 50) "sheeps"
+    CohesionSettings 8 (Pixels.pixels 40) "sheeps"
 
 
 dogAvoiderSettings =
