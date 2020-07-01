@@ -305,7 +305,7 @@ startingScore =
 
 
 startingTargetBBox =
-    BoundingBox2d.from (Point2d.pixels 300 100) (Point2d.pixels 650 270)
+    BoundingBox2d.from (Point2d.pixels 280 100) (Point2d.pixels 620 270)
 
 
 target =
@@ -404,7 +404,21 @@ update msg model =
                 ( newModel, Cmd.none )
 
         RandomPen bbox ->
-            ( model, Cmd.none )
+            ( { model
+                | entities =
+                    [ { entityType = Target
+                      , components = [ AreaComponent bbox areaStyling ]
+                      }
+                    ]
+                        ++ targetTrees bbox
+                        ++ startingSheeps
+                        ++ startingDog
+                        ++ startingTrees
+                        ++ playfieldTrees
+                        ++ startingScore
+              }
+            , Cmd.none
+            )
 
 
 generateNewBBox : Random.Generator BoundingBox
