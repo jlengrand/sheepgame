@@ -11,6 +11,7 @@ import Html exposing (Html)
 import Json.Decode
 import Pixels exposing (Pixels)
 import Point2d exposing (Point2d)
+import Quantity
 import String exposing (toInt)
 import Svg exposing (Svg)
 import Svg.Attributes exposing (cx, cy, height, r, rx, ry, transform, width, x, xlinkHref, y)
@@ -19,11 +20,11 @@ import Vector2d exposing (Vector2d)
 
 
 frictionRate =
-    0.96
+    0.98
 
 
 windowSize =
-    { width = 600, height = 600 }
+    { width = 700, height = 700 }
 
 
 type TopLeftCoordinates
@@ -58,8 +59,9 @@ type Component
     | AreaComponent BoundingBox AreaStyling
     | BodyComponent KinematicState CircleStyling
     | AvoidComponent AvoiderSettings
-    | AvoideeComponent
+    | AvoideeComponent String
     | ScoreComponent Int
+    | CohesionComponent CohesionSettings
 
 
 type alias BoundingBox =
@@ -69,9 +71,11 @@ type alias BoundingBox =
 type alias KinematicState =
     { position : Point2d Pixels TopLeftCoordinates
     , velocity : Vector2d Pixels TopLeftCoordinates
+    , acceleration : Vector2d Pixels TopLeftCoordinates
     , circleRadius : Float
     , collides : Bool
-    , static : Bool
+    , max_v : Quantity.Quantity Float Pixels
+    , max_a : Quantity.Quantity Float Pixels
     }
 
 
@@ -83,7 +87,15 @@ type alias KinematicStateAndBlockRadius =
 
 type alias AvoiderSettings =
     { strength : Float
-    , avoid_radius : Float
+    , avoid_radius : Quantity.Quantity Float Pixels
+    , avoidee_id : String
+    }
+
+
+type alias CohesionSettings =
+    { strength : Float
+    , comfort_radius : Quantity.Quantity Float Pixels
+    , flock_id : String
     }
 
 
@@ -150,12 +162,6 @@ type alias Flock =
     List Sheep
 
 
-defaultAvoiderSettings =
-    { strength = 100
-    , avoid_radius = 200
-    }
-
-
 rangeStep : Float -> Float -> Float -> List Float
 rangeStep from to step =
     List.map (\i -> from + (toFloat i * step)) <|
@@ -169,7 +175,7 @@ createTreeRectangle xMin xMax yMin yMax =
         (\( x, y ) ->
             { entityType = Tree
             , components =
-                [ BodyComponent (KinematicState (Point2d.pixels x y) (Vector2d.pixels 0 0) 15 True True) <| CircleStyling 15 "#caffbf" <| Just "/static/objects/tree.png"
+                [ BodyComponent (KinematicState (Point2d.pixels x y) (Vector2d.pixels 0 0) (Vector2d.pixels 0 0) 15 True (Pixels.pixels 0) (Pixels.pixels 0)) <| CircleStyling 15 "#caffbf" <| Just "/static/objects/tree.png"
                 ]
             }
         )
@@ -209,45 +215,57 @@ startingTrees =
 playfieldTrees =
     [ { entityType = Tree
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 400 130) (Vector2d.pixels 0 0) 37.5 True True) treeStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 400 130) (Vector2d.pixels 0 0) (Vector2d.pixels 0 0) 37.5 True (Pixels.pixels 0) (Pixels.pixels 0)) treeStyling
             ]
       }
     , { entityType = Tree
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 380 480) (Vector2d.pixels 0 0) 37.5 True True) treeStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 380 480) (Vector2d.pixels 0 0) (Vector2d.pixels 0 0) 37.5 True (Pixels.pixels 0) (Pixels.pixels 0)) treeStyling
             ]
       }
     , { entityType = Tree
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 200 320) (Vector2d.pixels 0 0) 37.5 True True) treeStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 200 320) (Vector2d.pixels 0 0) (Vector2d.pixels 0 0) 37.5 True (Pixels.pixels 0) (Pixels.pixels 0)) treeStyling
             ]
       }
     ]
 
 
+sheepBody x y =
+    BodyComponent (KinematicState (Point2d.pixels x y) (Vector2d.pixels 0 0) (Vector2d.pixels 0 0) 17.5 True (Pixels.pixels 4) (Pixels.pixels 0.1)) sheepStyling
+
+
+sheepCohesion =
+    CohesionSettings 8 (Pixels.pixels 50) "sheeps"
+
+
+dogAvoiderSettings =
+    { strength = 1
+    , avoid_radius = Pixels.pixels 170
+    , avoidee_id = "dog"
+    }
+
+
 startingSheeps =
     [ { entityType = Sheep
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 300 300) (Vector2d.pixels 0 0) 17.5 True False) sheepStyling
-            , AvoidComponent defaultAvoiderSettings
+            [ sheepBody 300 300
+            , AvoidComponent dogAvoiderSettings
+            , CohesionComponent sheepCohesion
             ]
       }
     , { entityType = Sheep
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 260 350) (Vector2d.pixels 0 0) 17.5 True False) sheepStyling
-            , AvoidComponent defaultAvoiderSettings
+            [ sheepBody 260 350
+            , AvoidComponent dogAvoiderSettings
+            , CohesionComponent sheepCohesion
             ]
       }
     , { entityType = Sheep
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 250 300) (Vector2d.pixels 0 0) 17.5 True False) sheepStyling
-            , AvoidComponent defaultAvoiderSettings
-            ]
-      }
-    , { entityType = Sheep
-      , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 250 375) (Vector2d.pixels 0 0) 17.5 True Basics.False) sheepStyling
-            , AvoidComponent defaultAvoiderSettings
+            [ sheepBody 250 300
+            , AvoidComponent dogAvoiderSettings
+            , CohesionComponent sheepCohesion
             ]
       }
     ]
@@ -256,9 +274,9 @@ startingSheeps =
 startingDog =
     [ { entityType = Dog
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 50 50) (Vector2d.pixels 0 0) 17.5 False False) dogStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 50 50) (Vector2d.pixels 0 0) (Vector2d.pixels 0 0) 17.5 False (Pixels.pixels 4) (Pixels.pixels 1.2)) dogStyling
             , KeyboardComponent
-            , AvoideeComponent
+            , AvoideeComponent "dog"
             ]
       }
     ]
@@ -274,7 +292,7 @@ startingScore =
 
 
 startingTargetBBox =
-    BoundingBox2d.from (Point2d.pixels 150 150) (Point2d.pixels 350 270)
+    BoundingBox2d.from (Point2d.pixels 500 150) (Point2d.pixels 650 270)
 
 
 target =
@@ -544,7 +562,15 @@ findNewPositionMaybeBlocked colliders kinematicState =
                 findNewPosition
                     { kinematicState
                         | velocity =
-                            Vector2d.withLength (Pixels.pixels 1.3) <| Maybe.withDefault Direction2d.x <| Vector2d.direction <| Vector2d.from blocker.position kinematicState.position
+                            Vector2d.withLength (Pixels.pixels 1.1) <|
+                                Maybe.withDefault Direction2d.x <|
+                                    Vector2d.direction <|
+                                        Vector2d.from blocker.position kinematicState.position
+                        , acceleration =
+                            Vector2d.withLength kinematicState.max_v <|
+                                Maybe.withDefault Direction2d.x <|
+                                    Vector2d.direction <|
+                                        Vector2d.from blocker.position kinematicState.position
                     }
 
         _ ->
@@ -573,15 +599,31 @@ circlesCollide p1 p2 =
         distance <= threshold
 
 
+limit : Quantity.Quantity Float Pixels -> Vector2d Pixels TopLeftCoordinates -> Vector2d Pixels TopLeftCoordinates
+limit m v =
+    -- Limit a vector to a given quantity
+    if Vector2d.length v |> Quantity.lessThan m then
+        v
+
+    else
+        case Vector2d.direction v of
+            Just dir ->
+                Vector2d.withLength m dir
+
+            Nothing ->
+                Vector2d.zero
+
+
 findNewPosition : KinematicState -> KinematicState
 findNewPosition kinematicState =
-    if kinematicState.static then
-        { kinematicState | velocity = Vector2d.xy (Pixels.pixels 0) (Pixels.pixels 0) }
+    if Quantity.equalWithin (Pixels.pixels 0) kinematicState.max_v (Pixels.pixels 0) then
+        { kinematicState | velocity = Vector2d.zero }
 
     else
         { kinematicState
-            | position = Point2d.translateBy kinematicState.velocity kinematicState.position
-            , velocity = Vector2d.scaleBy frictionRate kinematicState.velocity
+            | position = Point2d.translateBy (limit kinematicState.max_v kinematicState.velocity) kinematicState.position
+            , velocity = limit kinematicState.max_v <| Vector2d.plus (Vector2d.scaleBy frictionRate kinematicState.velocity) (limit kinematicState.max_a kinematicState.acceleration)
+            , acceleration = Vector2d.zero
         }
 
 
@@ -592,12 +634,27 @@ updateVelocities maybeDirection entities =
             if hasKeyboardComponent e then
                 { e | components = updateVelocityOfDogs e.components maybeDirection }
 
-            else if hasAvoidComponent e then
+            else if hasAvoidComponent e || hasCohesionComponent e then
                 let
+                    avoiderSettings =
+                        getAvoiderSettings e
+
                     avoideeLocations =
-                        getAvoideesLocation entities
+                        List.map2 Tuple.pair avoiderSettings (List.map (getAvoideesLocation entities) avoiderSettings)
+
+                    avoided =
+                        { e | components = List.foldl avoid e.components avoideeLocations }
                 in
-                { e | components = avoid e.components avoideeLocations }
+                case List.head <| getCohesionSettings e of
+                    Just cohesionSetting ->
+                        let
+                            flockLocations =
+                                getFlockLocations entities cohesionSetting
+                        in
+                        { avoided | components = flock cohesionSetting avoided.components flockLocations }
+
+                    Nothing ->
+                        avoided
 
             else
                 e
@@ -605,54 +662,80 @@ updateVelocities maybeDirection entities =
         entities
 
 
-avoid : List Component -> List KinematicState -> List Component
-avoid avoider avoidees =
+flock : CohesionSettings -> List Component -> List KinematicState -> List Component
+flock cohesionSettings components flockLocations =
     let
-        avoiderPostion =
-            List.filterMap getKinematicState avoider
-
-        avoiderAvoiderSettings =
-            List.filterMap getAvoiderSettings avoider
+        position =
+            List.filterMap getKinematicState components
     in
-    -- We only use the first one!
-    case List.head avoiderPostion of
+    case List.head position of
+        Nothing ->
+            components
+
+        Just ks ->
+            let
+                desired_location =
+                    Point2d.centroid ks.position (List.map .position flockLocations)
+
+                distance =
+                    Vector2d.from ks.position desired_location |> Vector2d.length
+
+                desired =
+                    Vector2d.from ks.position desired_location |> limit (Quantity.multiplyBy cohesionSettings.strength ks.max_a)
+
+                force =
+                    if distance |> Quantity.lessThan cohesionSettings.comfort_radius then
+                        Vector2d.zero
+
+                    else
+                        Vector2d.minus ks.velocity desired
+            in
+            applyForce components force
+
+
+avoid : ( AvoiderSettings, List KinematicState ) -> List Component -> List Component
+avoid ( settings, avoidees ) avoider =
+    let
+        avoiderPosition =
+            List.filterMap getKinematicState avoider
+    in
+    case List.head avoiderPosition of
         Nothing ->
             avoider
 
         Just avoiderKs ->
-            case List.head avoiderAvoiderSettings of
-                Just avoiderAs ->
-                    let
-                        desired =
-                            avoidees
-                                |> List.map
-                                    (\avoidee ->
-                                        let
-                                            distance =
-                                                Vector2d.from avoiderKs.position avoidee.position
+            let
+                desired =
+                    avoidees
+                        |> List.map
+                            (\avoidee ->
+                                let
+                                    distance =
+                                        Vector2d.from avoidee.position avoiderKs.position
 
-                                            distancevalue =
-                                                Pixels.inPixels (Vector2d.length distance)
+                                    length =
+                                        Vector2d.length distance
 
-                                            scaled =
-                                                if distancevalue > avoiderAs.avoid_radius then
-                                                    0
+                                    scaled =
+                                        if Quantity.greaterThan settings.avoid_radius length then
+                                            Vector2d.zero
 
-                                                else
-                                                    avoiderAs.strength / distancevalue
-                                        in
-                                        distance
-                                            |> Vector2d.direction
-                                            |> Maybe.map (Vector2d.withLength (Pixels.pixels scaled))
-                                            |> Maybe.withDefault (Vector2d.pixels 0 0)
-                                            |> Vector2d.reverse
-                                    )
-                                |> Vector2d.sum
-                    in
-                    applyForce avoider desired
+                                        else
+                                            distance
+                                                |> limit (Quantity.multiplyBy settings.strength avoiderKs.max_a)
+                                in
+                                scaled
+                             -- |> Vector2d.direction
+                             -- |> Maybe.map (Vector2d.withLength (Pixels.pixels scaled))
+                             -- |> Maybe.withDefault (Vector2d.pixels 0 0)
+                             -- |> Vector2d.reverse
+                            )
+                        |> Vector2d.sum
 
-                Nothing ->
-                    avoider
+                -- steering =
+                --     desired |> Vector2d.plus avoiderKs.velocity
+            in
+            applyForce avoider desired
 
 
 applyForce : List Component -> Vector2d Pixels TopLeftCoordinates -> List Component
@@ -663,7 +746,7 @@ applyForce components force =
                 case c of
                     BodyComponent ks styling ->
                         BodyComponent
-                            { ks | velocity = Vector2d.scaleBy 0.35 (Vector2d.plus ks.velocity force) }
+                            { ks | acceleration = Vector2d.plus ks.acceleration force }
                             styling
 
                     _ ->
@@ -671,11 +754,11 @@ applyForce components force =
             )
 
 
-getAvoideesLocation : Entities -> List KinematicState
-getAvoideesLocation entities =
+getAvoideesLocation : Entities -> AvoiderSettings -> List KinematicState
+getAvoideesLocation entities avoider =
     let
         avoidees =
-            List.filter hasAvoideeComponent entities
+            List.filter (hasAvoideeString avoider.avoidee_id) <| List.filter hasAvoideeComponent entities
     in
     avoidees
         |> List.concatMap
@@ -683,6 +766,49 @@ getAvoideesLocation entities =
                 entity.components
                     |> List.filterMap
                         getKinematicState
+            )
+
+
+getFlockLocations : Entities -> CohesionSettings -> List KinematicState
+getFlockLocations entities cohesion =
+    let
+        flockEntities =
+            List.filter (hasFlockString cohesion.flock_id) <| List.filter hasCohesionComponent entities
+    in
+    flockEntities
+        |> List.concatMap
+            (\entity ->
+                entity.components
+                    |> List.filterMap
+                        getKinematicState
+            )
+
+
+getAvoiderSettings : Entity -> List AvoiderSettings
+getAvoiderSettings e =
+    e.components
+        |> List.filterMap
+            (\c ->
+                case c of
+                    AvoidComponent avoiderSettings ->
+                        Just avoiderSettings
+
+                    _ ->
+                        Nothing
+            )
+
+
+getCohesionSettings : Entity -> List CohesionSettings
+getCohesionSettings e =
+    e.components
+        |> List.filterMap
+            (\c ->
+                case c of
+                    CohesionComponent cohesionSettings ->
+                        Just cohesionSettings
+
+                    _ ->
+                        Nothing
             )
 
 
@@ -696,8 +822,8 @@ getKinematicState c =
             Nothing
 
 
-getAvoiderSettings : Component -> Maybe AvoiderSettings
-getAvoiderSettings c =
+getAvoiderSettingsettings : Component -> Maybe AvoiderSettings
+getAvoiderSettingsettings c =
     case c of
         AvoidComponent a ->
             Just a
@@ -734,13 +860,55 @@ hasAvoidComponent entity =
         entity.components
 
 
+hasCohesionComponent : Entity -> Bool
+hasCohesionComponent entity =
+    List.any
+        (\c ->
+            case c of
+                CohesionComponent _ ->
+                    True
+
+                _ ->
+                    False
+        )
+        entity.components
+
+
 hasAvoideeComponent : Entity -> Bool
 hasAvoideeComponent entity =
     List.any
         (\c ->
             case c of
-                AvoideeComponent ->
+                AvoideeComponent _ ->
                     True
+
+                _ ->
+                    False
+        )
+        entity.components
+
+
+hasAvoideeString : String -> Entity -> Bool
+hasAvoideeString id entity =
+    List.any
+        (\c ->
+            case c of
+                AvoideeComponent id_ ->
+                    id == id_
+
+                _ ->
+                    False
+        )
+        entity.components
+
+
+hasFlockString : String -> Entity -> Bool
+hasFlockString id entity =
+    List.any
+        (\c ->
+            case c of
+                CohesionComponent cohesionSettings ->
+                    id == cohesionSettings.flock_id
 
                 _ ->
                     False
@@ -785,16 +953,16 @@ findNewVelocityOfDog : Direction -> KinematicState -> KinematicState
 findNewVelocityOfDog direction kstate =
     case direction of
         Up ->
-            { kstate | velocity = Vector2d.plus kstate.velocity <| Vector2d.pixels 0 -2 }
+            { kstate | velocity = Vector2d.plus kstate.velocity <| Maybe.withDefault Vector2d.zero <| Maybe.map (Vector2d.withLength kstate.max_a) <| Vector2d.direction <| Vector2d.pixels 0 -1 }
 
         Down ->
-            { kstate | velocity = Vector2d.plus kstate.velocity <| Vector2d.pixels 0 2 }
+            { kstate | velocity = Vector2d.plus kstate.velocity <| Maybe.withDefault Vector2d.zero <| Maybe.map (Vector2d.withLength kstate.max_a) <| Vector2d.direction <| Vector2d.pixels 0 1 }
 
         Left ->
-            { kstate | velocity = Vector2d.plus kstate.velocity <| Vector2d.pixels -2 0 }
+            { kstate | velocity = Vector2d.plus kstate.velocity <| Maybe.withDefault Vector2d.zero <| Maybe.map (Vector2d.withLength kstate.max_a) <| Vector2d.direction <| Vector2d.pixels -1 0 }
 
         Right ->
-            { kstate | velocity = Vector2d.plus kstate.velocity <| Vector2d.pixels 2 0 }
+            { kstate | velocity = Vector2d.plus kstate.velocity <| Maybe.withDefault Vector2d.zero <| Maybe.map (Vector2d.withLength kstate.max_a) <| Vector2d.direction <| Vector2d.pixels 1 0 }
 
         Other ->
             kstate
@@ -940,7 +1108,9 @@ render gameSettings zeComponent =
             case styling.imagePath of
                 Just path ->
                     Just <|
-                        -- Svg.g [] [
+                        -- Svg.g []
+                        --     [
+                        -- SHOW THE THING
                         Svg.image
                             [ x <| String.fromFloat <| (Point2d.toPixels location.position).x - styling.radius
                             , y <| String.fromFloat <| (Point2d.toPixels location.position).y - styling.radius
@@ -951,16 +1121,26 @@ render gameSettings zeComponent =
                             ]
                             []
 
-                --         Svg.circle
-                --             [ cx <| String.fromFloat (Point2d.toPixels location.position).x
-                --             , cy <| String.fromFloat (Point2d.toPixels location.position).y
-                --             , r <| String.fromFloat location.circleRadius
-                --             , Svg.Attributes.stroke styling.color
-                --             , Svg.Attributes.strokeWidth "2"
-                --             , Svg.Attributes.fill "none"
-                --             ]
-                --             []
-                -- -- ]
+                -- -- SHOW BOUNDING CIRCLES
+                -- , Svg.circle
+                --     [ cx <| String.fromFloat (Point2d.toPixels location.position).x
+                --     , cy <| String.fromFloat (Point2d.toPixels location.position).y
+                --     , r <| String.fromFloat location.circleRadius
+                --     , Svg.Attributes.stroke styling.color
+                --     , Svg.Attributes.strokeWidth "2"
+                --     , Svg.Attributes.fill "none"
+                --     ]
+                --     []
+                -- -- SHOW VELOCITIES
+                -- , Svg.line
+                --     [ Svg.Attributes.x1 <| String.fromFloat <| (Point2d.toPixels location.position).x
+                --     , Svg.Attributes.y1 <| String.fromFloat <| (Point2d.toPixels location.position).y
+                --     , Svg.Attributes.x2 <| String.fromFloat <| (Point2d.toPixels (Point2d.translateBy (Vector2d.scaleBy 10 location.velocity) location.position)).x
+                --     , Svg.Attributes.y2 <| String.fromFloat <| (Point2d.toPixels (Point2d.translateBy (Vector2d.scaleBy 10 location.velocity) location.position)).y
+                --     , Svg.Attributes.style "stroke:rgb(0,0,0);stroke-width:4"
+                --     ]
+                --     []
+                -- ]
                 _ ->
                     Just <|
                         Svg.circle
