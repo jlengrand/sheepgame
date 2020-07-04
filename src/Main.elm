@@ -1089,7 +1089,7 @@ gameView model =
     let
         instructions =
             Svg.text_
-                [ x <| "60"
+                [ x <| "110"
                 , y <| "35"
                 , Svg.Attributes.fill "black"
                 ]
