@@ -4,7 +4,7 @@ The Sheepgame was built as part of the **[4th Elm Game Jam](https://itch.io/jam/
 
 In this game, use your keyboard to control the dog and send all the goats / sheeps to their pen! Kind of a tribute to [Babe](https://en.wikipedia.org/wiki/Babe_(film))
 
-##You can play the game here](https://sheepgame.netlify.app/)
+## [You can play the game here](https://sheepgame.netlify.app/)
 
 ## Tech
 
