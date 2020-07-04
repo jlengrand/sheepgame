@@ -12,7 +12,7 @@ import Json.Decode
 import Pixels exposing (Pixels)
 import Point2d exposing (Point2d)
 import Quantity
-import String exposing (toInt)
+import Random
 import Svg exposing (Svg)
 import Svg.Attributes exposing (cx, cy, height, r, rx, ry, transform, width, x, xlinkHref, y)
 import Time exposing (Posix)
@@ -20,11 +20,19 @@ import Vector2d exposing (Vector2d)
 
 
 frictionRate =
-    0.98
+    0.96
 
 
 windowSize =
     { width = 700, height = 700 }
+
+
+minBoxSide =
+    200
+
+
+maxBoxSide =
+    400
 
 
 type TopLeftCoordinates
@@ -45,6 +53,7 @@ type alias Model =
     , gameSettings : GameSettings
     , lastTick : Posix
     , currentDirection : Maybe Direction
+    , maxScore : Int
     }
 
 
@@ -205,7 +214,7 @@ targetTrees boundingBox =
         trees =
             createTreeRectangle (Pixels.inPixels extrema.minX) (Pixels.inPixels extrema.maxX) (Pixels.inPixels extrema.minY) (Pixels.inPixels extrema.maxY)
     in
-    List.take (floor (toFloat (List.length trees) * 0.9)) trees
+    List.take (floor (toFloat (List.length trees) * 0.8)) trees
 
 
 startingTrees =
@@ -225,7 +234,7 @@ playfieldTrees =
       }
     , { entityType = Tree
       , components =
-            [ BodyComponent (KinematicState (Point2d.pixels 200 320) (Vector2d.pixels 0 0) (Vector2d.pixels 0 0) 37.5 True (Pixels.pixels 0) (Pixels.pixels 0)) treeStyling
+            [ BodyComponent (KinematicState (Point2d.pixels 100 320) (Vector2d.pixels 0 0) (Vector2d.pixels 0 0) 37.5 True (Pixels.pixels 0) (Pixels.pixels 0)) treeStyling
             ]
       }
     ]
@@ -236,7 +245,7 @@ sheepBody x y =
 
 
 sheepCohesion =
-    CohesionSettings 8 (Pixels.pixels 50) "sheeps"
+    CohesionSettings 8 (Pixels.pixels 40) "sheeps"
 
 
 dogAvoiderSettings =
@@ -292,7 +301,7 @@ startingScore =
 
 
 startingTargetBBox =
-    BoundingBox2d.from (Point2d.pixels 500 150) (Point2d.pixels 650 270)
+    BoundingBox2d.from (Point2d.pixels 280 100) (Point2d.pixels 620 270)
 
 
 target =
@@ -316,6 +325,7 @@ init _ =
       , gameSettings = { size = ( windowSize.width, windowSize.height ), color = "#bdb2ff" }
       , lastTick = Time.millisToPosix 0
       , currentDirection = Maybe.Nothing
+      , maxScore = List.length startingSheeps
       }
     , Cmd.none
     )
@@ -365,6 +375,7 @@ subscriptions model =
 type Msg
     = KeyPressed Direction
     | NewFrame Posix
+    | RandomPen BoundingBox
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -374,13 +385,63 @@ update msg model =
             ( { model | currentDirection = Just direction }, Cmd.none )
 
         NewFrame tick ->
+            let
+                newModel =
+                    { model
+                        | lastTick = tick
+                        , currentDirection = Maybe.Nothing
+                        , entities = updateVelocities model.currentDirection model.entities |> updatePositions |> updateScore
+                    }
+            in
+            if getCurrentScore newModel.entities == newModel.maxScore then
+                ( newModel, Random.generate RandomPen generateNewBBox )
+
+            else
+                ( newModel, Cmd.none )
+
+        RandomPen bbox ->
             ( { model
-                | lastTick = tick
-                , currentDirection = Maybe.Nothing
-                , entities = updateVelocities model.currentDirection model.entities |> updatePositions |> updateScore
+                | entities =
+                    [ { entityType = Target
+                      , components = [ AreaComponent bbox areaStyling ]
+                      }
+                    ]
+                        ++ targetTrees bbox
+                        ++ startingSheeps
+                        ++ startingDog
+                        ++ startingTrees
+                        ++ playfieldTrees
+                        ++ startingScore
               }
             , Cmd.none
             )
+
+
+generateNewBBox : Random.Generator BoundingBox
+generateNewBBox =
+    Random.map4
+        (\x1 y1 w h -> BoundingBox2d.from (Point2d.pixels x1 y1) (Point2d.pixels (x1 + w) (y1 + h)))
+        (Random.float 60 (windowSize.width - maxBoxSide - 60))
+        (Random.float 60 (windowSize.height - maxBoxSide - 60))
+        (Random.float minBoxSide maxBoxSide)
+        (Random.float minBoxSide maxBoxSide)
+
+
+getCurrentScore : Entities -> Int
+getCurrentScore entities =
+    let
+        scoreEntity =
+            List.filter
+                hasScoreComponent
+                entities
+                |> List.head
+    in
+    case scoreEntity of
+        Just entity ->
+            getScoreOfEntity entity
+
+        Maybe.Nothing ->
+            0
 
 
 isDog : Entity -> Bool
@@ -471,6 +532,22 @@ getScore bbox kstates =
         |> List.filter
             identity
         |> List.length
+
+
+getScoreOfEntity : Entity -> Int
+getScoreOfEntity entity =
+    List.filterMap
+        (\c ->
+            case c of
+                ScoreComponent score ->
+                    Just score
+
+                _ ->
+                    Maybe.Nothing
+        )
+        entity.components
+        |> List.head
+        |> Maybe.withDefault 0
 
 
 getAreaComponentOfEntity : Entity -> Maybe BoundingBox
@@ -909,6 +986,20 @@ hasFlockString id entity =
             case c of
                 CohesionComponent cohesionSettings ->
                     id == cohesionSettings.flock_id
+
+                _ ->
+                    False
+        )
+        entity.components
+
+
+hasScoreComponent : Entity -> Bool
+hasScoreComponent entity =
+    List.any
+        (\c ->
+            case c of
+                ScoreComponent _ ->
+                    True
 
                 _ ->
                     False
